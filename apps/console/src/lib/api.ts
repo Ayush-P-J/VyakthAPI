@@ -5,6 +5,18 @@ export type Profile = components["schemas"]["Profile"];
 export type ProjectOverview = components["schemas"]["ProjectOverview"];
 export type SignupRequest = components["schemas"]["SignupRequest"];
 export type LoginRequest = components["schemas"]["LoginRequest"];
+export type Project = components["schemas"]["Project"];
+export type NewProjectRequest = components["schemas"]["NewProjectRequest"];
+export type ApiKey = components["schemas"]["ApiKey"];
+export type ApiKeyList = components["schemas"]["ApiKeyList"];
+export type CreatedApiKey = components["schemas"]["CreatedApiKey"];
+export type NewApiKeyRequest = components["schemas"]["NewApiKeyRequest"];
+export type Connection = components["schemas"]["Connection"];
+export type ConnectionList = components["schemas"]["ConnectionList"];
+export type ConnectLink = components["schemas"]["ConnectLink"];
+export type ConnectLinkList = components["schemas"]["ConnectLinkList"];
+export type CreatedConnectLink = components["schemas"]["CreatedConnectLink"];
+export type NewConnectLinkRequest = components["schemas"]["NewConnectLinkRequest"];
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public details?: unknown) {

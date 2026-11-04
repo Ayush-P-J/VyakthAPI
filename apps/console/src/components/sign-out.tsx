@@ -14,7 +14,7 @@ export function SignOut() {
   return (
     <div>
       <Button
-        variant="rail" size="small" disabled={pending}
+        variant="rail" size="bare" disabled={pending}
         onClick={async () => {
           setPending(true);
           setFailed(false);

@@ -11,6 +11,7 @@ import { CONFIG, type Config } from "./config.ts";
 import { Db, type Tx } from "./db.ts";
 import { ApiError, notFound } from "./errors.ts";
 import { Hub } from "./hub.ts";
+import { hashToken, randomToken } from "./secrets.ts";
 import { Webhooks } from "./webhooks.ts";
 
 export interface Consent { rules: Policy; customDefault: Privacy }
@@ -126,6 +127,16 @@ export class Platform {
       connectorOnline: online, tallyOpen: online && Boolean(r.tally_open),
       lastSeenAt: r.last_seen_at, lastSyncAt: r.last_sync, schemaVersion: r.schema_version,
     };
+  }
+
+  /** The secret goes back to the caller once; only its hash is stored. */
+  async createConnectLink(tenantId: string, projectId: string, input: { label?: string | undefined; redirectUrl?: string | undefined; requestedScopes: string[]; requestedFields?: unknown[]; expiresInHours: number }) {
+    const token = randomToken("cl_");
+    const row = await this.db.one(
+      `INSERT INTO connect_link (tenant_id, project_id, token, label, requested_scopes, expires_at, redirect_url, requested_fields)
+       VALUES ($1, $2, $3, $4, $5::api_scope[], now() + make_interval(hours => $6), $7, $8) RETURNING id, expires_at`,
+      [tenantId, projectId, hashToken(token), input.label ?? null, input.requestedScopes, input.expiresInHours, input.redirectUrl ?? null, JSON.stringify(input.requestedFields ?? [])]);
+    return { id: row.id as string, url: `${this.config.publicUrl}/connect/${token}`, token, expiresAt: row.expires_at as Date };
   }
 
   async revokeConnection(conn: any, by: "developer" | "customer"): Promise<void> {

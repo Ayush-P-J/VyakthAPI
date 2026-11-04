@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { api, type ProjectOverview } from "@/lib/api";
 
 function Row({ label, value, note }: { label: string; value: number | undefined; note?: string }) {
@@ -17,7 +18,7 @@ function Row({ label, value, note }: { label: string; value: number | undefined;
 
 export function Overview({ projectId }: { projectId: string }) {
   const { data, error, isPending } = useQuery({
-    queryKey: ["overview", projectId],
+    queryKey: ["project", projectId, "overview"],
     queryFn: () => api<ProjectOverview>(`/projects/${projectId}/overview`),
     refetchInterval: 15_000,
   });
@@ -34,7 +35,8 @@ export function Overview({ projectId }: { projectId: string }) {
       {c?.total === 0 ? (
         <section className="mt-10 max-w-xl">
           <h2 className="text-xl font-semibold">No customers connected yet</h2>
-          <p className="mt-2 text-quiet">You'll create API keys and connect links here in the next release. Each customer you connect will show up on this page.</p>
+          <p className="mt-2 text-quiet">Create a connect link and send it to your customer. Each company they connect will be counted here.</p>
+          <p className="mt-3"><Link href={`/projects/${projectId}/connections`} className="font-medium text-bank underline underline-offset-3">Connect a customer</Link></p>
         </section>
       ) : null}
     </>

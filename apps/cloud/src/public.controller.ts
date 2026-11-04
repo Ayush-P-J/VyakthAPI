@@ -9,7 +9,7 @@ import { CONFIG, type Config } from "./config.ts";
 import { Db } from "./db.ts";
 import { ApiError, notFound } from "./errors.ts";
 import { Platform, isUuid } from "./platform.ts";
-import { hashToken, randomToken, seal } from "./secrets.ts";
+import { randomToken, seal } from "./secrets.ts";
 
 const FieldInput = z.object({
   dataset: z.string(), name: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_]{0,63}$/), expr: z.string().min(1).max(400), type: z.enum(FIELD_TYPES).default("text"),
@@ -17,7 +17,7 @@ const FieldInput = z.object({
 }).strict();
 const httpUrl = z.string().url().max(2000).refine((u) => /^https?:\/\//.test(u), "Must be an http(s) URL");
 
-const ConnectLink = z.object({ label: z.string().max(200).optional(), redirectUrl: httpUrl.optional(), requestedScopes: z.array(z.enum(["read", "write"])).default(["read"]), requestedFields: z.array(FieldInput).max(200).default([]), expiresInHours: z.number().int().min(1).max(24 * 30).default(72) }).strict();
+export const ConnectLink = z.object({ label: z.string().max(200).optional(), redirectUrl: httpUrl.optional(), requestedScopes: z.array(z.enum(["read", "write"])).default(["read"]), requestedFields: z.array(FieldInput).max(200).default([]), expiresInHours: z.number().int().min(1).max(24 * 30).default(72) }).strict();
 const Webhook = z.object({ url: httpUrl, events: z.array(z.enum(["record.created", "record.updated", "record.deleted", "write_job.completed", "write_job.failed", "connection.status_changed", "schema.published"])).min(1) }).strict();
 const ListQuery = z.object({
   cursor: z.string().max(500).optional(), limit: z.coerce.number().int().min(1).max(500).default(100), updatedSince: z.string().datetime({ offset: true }).optional(),
@@ -44,12 +44,7 @@ export class PublicController {
   async createLink(@Req() req: Request, @Body() body: unknown) {
     const a = await this.auth.apiKey(req, "admin");
     const input = ConnectLink.parse(body ?? {});
-    const token = randomToken("cl_");
-    const row = await this.db.one(
-      `INSERT INTO connect_link (tenant_id, project_id, token, label, requested_scopes, expires_at, redirect_url, requested_fields)
-       VALUES ($1, $2, $3, $4, $5::api_scope[], now() + make_interval(hours => $6), $7, $8) RETURNING id, expires_at`,
-      [a.tenantId, a.projectId, hashToken(token), input.label ?? null, input.requestedScopes, input.expiresInHours, input.redirectUrl ?? null, JSON.stringify(input.requestedFields)]);
-    return { id: row.id, url: `${this.config.publicUrl}/connect/${token}`, token, expiresAt: row.expires_at };
+    return this.platform.createConnectLink(a.tenantId, a.projectId, input);
   }
 
   @Get("connections")

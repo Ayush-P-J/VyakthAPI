@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ConsoleNav } from "@/components/console-nav";
 import { SignOut } from "@/components/sign-out";
 import { getProfile } from "@/lib/server-api";
 
@@ -10,9 +11,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     <div className="flex min-h-screen flex-col md:flex-row">
       <aside className="flex shrink-0 flex-col gap-6 bg-bank p-5 text-white md:sticky md:top-0 md:h-screen md:w-60">
         <Link href="/" className="font-serif text-lg leading-tight font-semibold">Hexspare Tally API</Link>
-        <nav aria-label="Main">
-          <Link href="/" aria-current="page" className="block border-l-3 border-margin bg-bank-deep px-3 py-2 font-medium">Overview</Link>
-        </nav>
+        <ConsoleNav projects={profile.projects} />
         <div className="mt-auto text-sm">
           <p className="font-medium break-words">{profile.user.name ?? profile.user.email}</p>
           <p className="mb-2 break-words text-rail-quiet">{profile.tenant.name}</p>

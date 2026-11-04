@@ -8,9 +8,11 @@ const button = cva(
     variants: {
       variant: {
         primary: "bg-bank text-white hover:bg-bank-deep",
+        secondary: "border border-bank text-bank hover:bg-desk",
+        danger: "border border-margin text-margin hover:bg-margin hover:text-white",
         rail: "text-rail-quiet hover:text-white underline-offset-4 hover:underline",
       },
-      size: { default: "px-5 py-2.5", small: "text-sm" },
+      size: { default: "px-5 py-2.5", small: "px-3 py-1.5 text-sm", bare: "text-sm" },
     },
     defaultVariants: { variant: "primary", size: "default" },
   },

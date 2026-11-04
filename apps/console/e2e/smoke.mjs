@@ -2,9 +2,11 @@
 import { chromium } from "playwright-core";
 
 const base = process.argv[2] ?? "http://localhost:3001";
+const apiUrl = process.env.API_URL ?? "http://localhost:3000";
 const shots = process.argv[3];
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH ?? "/usr/bin/google-chrome", headless: true, args: ["--no-sandbox"] });
 const context = await browser.newContext({ viewport: { width: 1200, height: 800 } });
+await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: base });
 const page = await context.newPage();
 const problems = [];
 page.on("pageerror", (e) => problems.push(`page error: ${e.message}`));
@@ -73,6 +75,109 @@ await step("a signed-in visitor skips the sign-in page", async () => {
   await page.goto(`${base}/login`);
   await page.getByRole("heading", { name: "Shanoor Realtors" }).waitFor();
 });
+let apiKey = "";
+let connectUrl = "";
+const secretOnScreen = () => page.locator("code.select-all").innerText();
+await step("the overview links to connecting a customer", async () => {
+  await page.getByRole("link", { name: "Connect a customer" }).click();
+  await page.getByRole("heading", { name: "Connections", level: 1 }).waitFor();
+  await page.waitForURL("**/connections");
+  await see("No companies yet");
+});
+await step("the nav marks the page you are on", async () => {
+  const current = await page.locator('nav[aria-label="Main"] [aria-current="page"]').innerText();
+  if (current !== "Connections") throw new Error(`marked ${current}`);
+});
+await step("a key needs a name", async () => {
+  await page.getByRole("link", { name: "API keys" }).click();
+  await page.getByRole("heading", { name: "API keys", level: 1 }).waitFor();
+  await see("No keys yet");
+  await page.getByRole("button", { name: "Create API key" }).click();
+  await page.getByRole("button", { name: "Create key" }).click();
+  await see("Enter a name for this key.");
+});
+await step("a new key is shown once, copies, and works against the real API", async () => {
+  await page.getByLabel("Key name").fill("Billing app");
+  await page.getByLabel(/^Full access/).check();
+  await page.getByRole("button", { name: "Create key" }).click();
+  await see("Your new key: Billing app");
+  apiKey = await secretOnScreen();
+  if (!apiKey.startsWith("hx_live_")) throw new Error("no key on screen");
+  await page.getByRole("button", { name: "Copy" }).click();
+  await see("Copied.");
+  if ((await page.evaluate(() => navigator.clipboard.readText())) !== apiKey) throw new Error("clipboard differs");
+  await shot("key-created");
+  const res = await fetch(`${apiUrl}/v1/connections`, { headers: { authorization: `Bearer ${apiKey}` } });
+  if (res.status !== 200) throw new Error(`API answered ${res.status}`);
+});
+await step("after Done or a reload, the key is gone for good", async () => {
+  await page.getByRole("button", { name: "Done" }).click();
+  await see("Billing app");
+  await page.reload();
+  await see("Last used:");
+  if ((await page.content()).includes(apiKey)) throw new Error("the full key is still in the page");
+  await page.locator("code", { hasText: apiKey.slice(0, 12) }).waitFor();
+  await shot("keys");
+});
+await step("revoking asks first, can be called off, then kills the key", async () => {
+  await page.getByRole("button", { name: "Revoke Billing app" }).click();
+  await page.getByRole("button", { name: "Keep it" }).click();
+  let res = await fetch(`${apiUrl}/v1/connections`, { headers: { authorization: `Bearer ${apiKey}` } });
+  if (res.status !== 200) throw new Error("calling it off still revoked");
+  await page.getByRole("button", { name: "Revoke Billing app" }).click();
+  await see("Apps using this key stop working at once.");
+  await page.getByRole("button", { name: "Yes, revoke" }).click();
+  await see("Revoked");
+  res = await fetch(`${apiUrl}/v1/connections`, { headers: { authorization: `Bearer ${apiKey}` } });
+  if (res.status !== 401) throw new Error(`revoked key answered ${res.status}`);
+});
+await step("a connect link is created and opens for the customer", async () => {
+  await page.getByRole("link", { name: "Connections" }).click();
+  await page.getByRole("button", { name: "Connect a customer" }).click();
+  await page.getByLabel("Customer name").fill("Acme Industries");
+  await page.getByLabel("Return address").fill("not an address");
+  await page.getByRole("button", { name: "Create link" }).click();
+  await see("Enter a full address");
+  await page.getByLabel("Return address").fill("");
+  await page.getByLabel(/post entries into Tally/).check();
+  await page.getByRole("button", { name: "Create link" }).click();
+  await see("Your connect link");
+  connectUrl = await secretOnScreen();
+  await shot("link-created");
+  const state = await (await fetch(`${connectUrl}/state`)).json();
+  if (state.status !== "awaiting_connector" || state.label !== "Acme Industries" || !state.requestedScopes.includes("write")) throw new Error(JSON.stringify(state));
+  await see("Waiting for the customer to start the connector");
+});
+await step("cancelling the link stops it working", async () => {
+  await page.getByRole("button", { name: "Done" }).click();
+  await page.getByRole("button", { name: "Cancel Acme Industries" }).click();
+  await page.getByRole("button", { name: "Yes, cancel it" }).click();
+  await see("Expired or cancelled");
+  await page.waitForTimeout(50);
+  const state = await (await fetch(`${connectUrl}/state`)).json();
+  if (state.status !== "expired") throw new Error(state.status);
+  await shot("connections");
+});
+await step("a second project has its own keys, and the switcher keeps your place", async () => {
+  await page.getByRole("link", { name: "New project" }).click();
+  await page.getByRole("button", { name: "Create project" }).click();
+  await see("Enter a project name.");
+  await page.getByLabel("Project name").fill("Second app");
+  await page.getByRole("button", { name: "Create project" }).click();
+  await page.getByRole("heading", { name: "Second app", level: 1 }).waitFor({ timeout: 10000 });
+  await page.getByRole("link", { name: "API keys" }).click();
+  await see("No keys yet");
+  await page.getByLabel("Project").selectOption({ label: "Shanoor Realtors" });
+  await page.getByText("Billing app").waitFor({ timeout: 10000 });
+  await page.waitForURL("**/keys");
+});
+await step("a project that isn't yours shows not found", async () => {
+  const res = await page.goto(`${base}/projects/00000000-0000-4000-8000-000000000000`);
+  if (res.status() !== 404) throw new Error(`answered ${res.status()}`);
+  await see("We can't find that page");
+  await page.goto(`${base}/`);
+  await page.getByRole("heading", { name: "Shanoor Realtors" }).waitFor();
+});
 await step("signing out returns to sign in, and the console stays closed", async () => {
   await page.getByRole("button", { name: "Sign out" }).click();
   await page.waitForURL("**/login");
@@ -102,6 +207,13 @@ await step("the layout holds on a phone, with no sideways scrolling", async () =
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   if (overflow) throw new Error("page scrolls sideways");
   await shot("overview-mobile");
+  for (const section of ["API keys", "Connections"]) {
+    await page.getByRole("link", { name: section }).click();
+    await page.getByRole("heading", { name: section, level: 1 }).waitFor();
+    await page.waitForLoadState("networkidle");
+    if (await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)) throw new Error(`${section} scrolls sideways`);
+    await shot(`${section.replace(" ", "-").toLowerCase()}-mobile`);
+  }
 });
 await step("no script errors anywhere", async () => { if (problems.length) throw new Error(problems.join("; ")); });
 

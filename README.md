@@ -35,13 +35,15 @@ New accounts are open by default. **Set `ALLOW_SIGNUP=false` in `.env` before ex
 ```sh
 ./scripts/setup.sh
 docker compose up -d
-docker compose run --rm api seed "Acme" "Acme app"       # note the apiKey
-curl -X POST localhost:3000/v1/connect-links -H "authorization: Bearer $KEY" \
-  -H 'content-type: application/json' -d '{"requestedScopes":["read","write"]}'  # note url and token
+```
+
+Open the console at <http://localhost:3001> and create an account. Under **API keys**, create a key and set it as `$KEY`. Under **Connections**, choose **Connect a customer** and copy the link. The token is the part after `/connect/`. Then:
+
+```sh
 CONNECT_LINK_TOKEN=<token> docker compose --profile demo up -d
 ```
 
-Open the `url`, choose what to share, and connect. Then:
+Open the link, choose what to share, and connect. The company then appears under **Connections** with its live status. Then:
 
 ```sh
 curl localhost:3000/v1/connections -H "authorization: Bearer $KEY"
@@ -64,7 +66,7 @@ pnpm generate    # rebuilds the Standard pack from vyakth-connector/dist
 
 pnpm --filter @hexspare/console dev         # console on :3001, needs the API on :3000
 pnpm --filter @hexspare/console types:api   # regenerates API types after changing openapi/console.openapi.json
-pnpm --filter @hexspare/console smoke       # browser test against a running console, using local Chrome
+pnpm --filter @hexspare/console smoke       # browser test against a running console and API, using local Chrome
 ```
 
 The generated pack is committed, so the cloud build never needs the connector's code. The Step 0 gate runs only where `vyakth-connector/` is present.
