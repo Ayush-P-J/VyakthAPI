@@ -1,0 +1,22 @@
+{
+  "name": "@hexspare/tally-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "generate": "tsx scripts/generate-standard-pack.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^5.11.2",
+    "sax": "^1.6.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/sax": "^1.2.7"
+  }
+}

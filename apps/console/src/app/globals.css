@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-paper: #EEF2F4;
+  --color-desk: #D9E1E7;
+  --color-ink: #1A1F2E;
+  --color-bank: #16235C;
+  --color-bank-deep: #0E1A4A;
+  --color-margin: #C2182B;
+  --color-rule: #B9CBDD;
+  --color-quiet: #55607A;
+  --color-rail-quiet: #B8C2E0;
+  --font-sans: var(--font-plex), "Segoe UI", system-ui, sans-serif;
+  --font-serif: var(--font-source-serif), Cambria, Georgia, serif;
+  --font-mono: var(--font-plex-mono), Consolas, monospace;
+}
+
+html { background: var(--color-desk); }
+body { color: var(--color-ink); font-family: var(--font-sans); }
+h1, h2 { font-family: var(--font-serif); color: var(--color-bank); }
+
+/* The account book's double red margin line. The one decorative thing in the console. */
+.ledger-page {
+  --margin-at: 3.5rem;
+  background-color: var(--color-paper);
+  background-image: linear-gradient(to right,
+    transparent calc(var(--margin-at) - .25rem), var(--color-margin) calc(var(--margin-at) - .25rem), var(--color-margin) calc(var(--margin-at) - .19rem),
+    transparent calc(var(--margin-at) - .19rem), transparent calc(var(--margin-at) - .06rem), var(--color-margin) calc(var(--margin-at) - .06rem), var(--color-margin) var(--margin-at),
+    transparent var(--margin-at));
+  padding-left: calc(var(--margin-at) + 1.25rem);
+}
+@media (max-width: 40rem) { .ledger-page { --margin-at: 1rem; } }

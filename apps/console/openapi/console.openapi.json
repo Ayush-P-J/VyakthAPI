@@ -1,0 +1,34 @@
+{
+  "openapi": "3.1.0",
+  "info": { "title": "Hexspare console API", "version": "1", "description": "The API behind the developer console. The console reaches it at /console-api, which maps to /console/v1 on the API." },
+  "paths": {
+    "/auth/signup": { "post": { "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SignupRequest" } } } }, "responses": { "201": { "description": "Account created and signed in", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Profile" } } } } } } },
+    "/auth/login": { "post": { "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoginRequest" } } } }, "responses": { "200": { "description": "Signed in", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Profile" } } } } } } },
+    "/auth/logout": { "post": { "responses": { "204": { "description": "Signed out" } } } },
+    "/me": { "get": { "responses": { "200": { "description": "The signed-in user", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Profile" } } } } } } },
+    "/projects/{id}/overview": { "get": { "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "Counts for one project", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProjectOverview" } } } } } } }
+  },
+  "components": {
+    "schemas": {
+      "SignupRequest": { "type": "object", "required": ["name", "company", "email", "password"], "properties": { "name": { "type": "string" }, "company": { "type": "string" }, "email": { "type": "string" }, "password": { "type": "string" } } },
+      "LoginRequest": { "type": "object", "required": ["email", "password"], "properties": { "email": { "type": "string" }, "password": { "type": "string" } } },
+      "Profile": {
+        "type": "object", "required": ["user", "tenant", "projects"],
+        "properties": {
+          "user": { "type": "object", "required": ["id", "email", "name"], "properties": { "id": { "type": "string" }, "email": { "type": "string" }, "name": { "type": ["string", "null"] } } },
+          "tenant": { "type": "object", "required": ["id", "name"], "properties": { "id": { "type": "string" }, "name": { "type": "string" } } },
+          "projects": { "type": "array", "items": { "type": "object", "required": ["id", "name", "isSandbox"], "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "isSandbox": { "type": "boolean" } } } }
+        }
+      },
+      "ProjectOverview": {
+        "type": "object", "required": ["project", "connections", "apiKeys"],
+        "properties": {
+          "project": { "type": "object", "required": ["id", "name"], "properties": { "id": { "type": "string" }, "name": { "type": "string" } } },
+          "connections": { "type": "object", "required": ["total", "active", "online", "tallyOpen"], "properties": { "total": { "type": "integer" }, "active": { "type": "integer" }, "online": { "type": "integer" }, "tallyOpen": { "type": "integer" } } },
+          "apiKeys": { "type": "integer" }
+        }
+      },
+      "ApiError": { "type": "object", "required": ["error"], "properties": { "error": { "type": "object", "required": ["code", "message"], "properties": { "code": { "type": "string" }, "message": { "type": "string" }, "details": {} } } } }
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "@hexspare/fake-tally",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^5.11.2",
+    "@hexspare/tally-engine": "workspace:*"
+  }
+}

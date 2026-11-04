@@ -1,0 +1,22 @@
+{
+  "name": "hexspare-tally-platform",
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "build": "node scripts/build.mjs",
+    "db:dev": "docker compose -f docker-compose.dev.yml -p hxdev up -d --wait postgres",
+    "generate": "pnpm --filter @hexspare/tally-engine generate"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0",
+    "esbuild": "^0.28.2"
+  }
+}

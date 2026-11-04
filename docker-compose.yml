@@ -1,0 +1,125 @@
+# The whole cloud side. First run: ./scripts/setup.sh, then: docker compose up -d
+# The connector is not here: it runs on the customer's Windows PC beside Tally and dials out to this.
+name: tally-platform
+
+x-cloud: &cloud
+  image: hexspare/tally-cloud:${IMAGE_TAG:-latest}
+  build: { context: ., target: cloud }
+  environment: &cloud-env
+    DATABASE_URL: postgres://hexspare:${POSTGRES_PASSWORD:?Run scripts/setup.sh to create .env}@postgres:5432/tally_platform
+    PUBLIC_URL: ${PUBLIC_URL:?Run scripts/setup.sh to create .env}
+    CONSOLE_URL: ${CONSOLE_URL:-http://localhost:3001}
+    ALLOW_SIGNUP: ${ALLOW_SIGNUP:-true}
+    SECRETS_KEY: ${SECRETS_KEY:?Run scripts/setup.sh to create .env}
+    SIGNING_KID: ${SIGNING_KID:?Run scripts/setup.sh to create .env}
+    SIGNING_PRIVATE_KEY: ${SIGNING_PRIVATE_KEY:?Run scripts/setup.sh to create .env}
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hexspare
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run scripts/setup.sh to create .env}
+      POSTGRES_DB: tally_platform
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hexspare -d tally_platform"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  # Runs once on every deployment, then exits. The API waits for it.
+  migrate:
+    <<: *cloud
+    command: ["migrate"]
+    restart: "no"
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api:
+    <<: *cloud
+    command: ["serve"]
+    restart: unless-stopped
+    # One replica: live channels are held in this process. See docs/adr/0002-build-decisions.md.
+    ports: ["127.0.0.1:${API_PORT:-3000}:3000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  worker:
+    <<: *cloud
+    command: ["worker"]
+    restart: unless-stopped
+    healthcheck: { disable: true }
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  # The developer console. The browser only talks to this, and it forwards /console-api to the API.
+  console:
+    image: hexspare/tally-console:${IMAGE_TAG:-latest}
+    build: { context: ., target: console }
+    restart: unless-stopped
+    environment:
+      API_INTERNAL_URL: http://api:3000
+    ports: ["127.0.0.1:${CONSOLE_PORT:-3001}:3000"]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      api: { condition: service_healthy }
+
+  # HTTPS with an automatic certificate. The connector refuses plain HTTP to a remote backend.
+  # Start with: docker compose --profile tls up -d (needs DOMAIN in .env, and ports 80 and 443 open).
+  caddy:
+    image: caddy:2-alpine
+    profiles: [tls]
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+      CONSOLE_DOMAIN: ${CONSOLE_DOMAIN:-console.localhost}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api: { condition: service_healthy }
+      console: { condition: service_healthy }
+
+  # A simulated Tally and a headless connector, to try the platform with no Windows PC.
+  # Start with: docker compose --profile demo up -d
+  fake-tally:
+    image: hexspare/tally-demo:${IMAGE_TAG:-latest}
+    build: { context: ., target: demo }
+    profiles: [demo]
+    command: ["node", "fake-tally.mjs"]
+    environment: { PORT: "9000", HOST: "0.0.0.0" }
+
+  connector:
+    image: hexspare/tally-demo:${IMAGE_TAG:-latest}
+    profiles: [demo]
+    command: ["node", "connector.mjs", "run"]
+    restart: unless-stopped
+    environment:
+      CLOUD_URL: http://api:3000
+      ALLOW_INSECURE_CLOUD: "true"
+      TALLY_HOST: fake-tally
+      TALLY_PORT: "9000"
+      SYNC_INTERVAL_MS: "15000"
+      TRUSTED_SIGNING_KEYS: ${SIGNING_KID:-}=${SIGNING_PUBLIC_KEY:-}
+      CONNECT_LINK_TOKEN: ${CONNECT_LINK_TOKEN:-}
+    volumes: [connector_data:/data]
+    depends_on:
+      api: { condition: service_healthy }
+      fake-tally: { condition: service_started }
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
+  connector_data:

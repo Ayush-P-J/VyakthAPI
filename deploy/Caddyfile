@@ -1,0 +1,9 @@
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy api:3000
+}
+
+{$CONSOLE_DOMAIN} {
+	encode gzip
+	reverse_proxy console:3000
+}

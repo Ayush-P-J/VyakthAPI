@@ -1,0 +1,2189 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>VYAKTH Connector Settings</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+          Arial, sans-serif;
+        color: #202124;
+        background: #f8fafc;
+        user-select: none;
+      }
+      input,
+      textarea {
+        user-select: text;
+      }
+      .app {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
+
+      /* --- Titlebar (frameless window — see settings.ts) --- */
+      .titlebar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 40px;
+        flex-shrink: 0;
+        background: #12172b;
+        color: #fff;
+        -webkit-app-region: drag;
+      }
+      .titlebar-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 14px;
+        min-width: 0;
+      }
+      .titlebar-logo {
+        width: 22px;
+        height: 22px;
+        flex-shrink: 0;
+        border-radius: 6px;
+        background: #527cf4;
+        padding: 2px;
+        object-fit: contain;
+      }
+      .titlebar-title {
+        font-size: 13px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .titlebar-controls {
+        display: flex;
+        align-items: stretch;
+        height: 100%;
+        -webkit-app-region: no-drag;
+      }
+      .titlebar-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 100%;
+        background: transparent;
+        border: none;
+        border-radius: 0;
+        color: #cbd2e1;
+        cursor: pointer;
+        padding: 0;
+      }
+      .titlebar-btn svg {
+        width: 14px;
+        height: 14px;
+      }
+      .titlebar-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+      }
+      .titlebar-btn.close:hover {
+        background: #e81123;
+        color: #fff;
+      }
+
+      .app-body {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+      }
+
+      /* --- Sidebar --- */
+      .sidebar {
+        width: 190px;
+        flex-shrink: 0;
+        background: #eef4fb;
+        padding: 14px 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        overflow-y: auto;
+      }
+      .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 14px;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #3c4043;
+        cursor: pointer;
+        user-select: none;
+      }
+      .nav-item:hover {
+        background: #e2ecf7;
+      }
+      .nav-item.active {
+        background: #d3e6fb;
+        color: #1a73e8;
+      }
+      .nav-item .icon {
+        display: flex;
+        width: 18px;
+        flex-shrink: 0;
+      }
+      .nav-item .icon svg {
+        width: 18px;
+        height: 18px;
+      }
+      .nav-spacer {
+        flex: 1;
+      }
+
+      /* --- Page content --- */
+      .content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 24px 28px;
+      }
+      .page {
+        display: none;
+      }
+      .page.active {
+        display: block;
+      }
+      .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+      .page-header h2 {
+        margin: 0;
+        font-size: 18px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .page-desc {
+        font-size: 13px;
+        color: #5f6368;
+        margin: -12px 0 18px;
+        line-height: 1.5;
+      }
+
+      .back-link {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        padding: 0;
+        background: none;
+        border: none;
+        border-radius: 50%;
+        color: #3c4043;
+        cursor: pointer;
+      }
+      .back-link:hover {
+        background: #e8eaed;
+      }
+      .back-link svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      button {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #1a73e8;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      button:hover {
+        background: #1557b0;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+      button.secondary {
+        background: #f1f3f4;
+        color: #3c4043;
+        border: 1px solid #dadce0;
+      }
+      button.secondary:hover {
+        background: #e8eaed;
+      }
+      button.danger-link {
+        background: none;
+        border: none;
+        color: #d93025;
+        padding: 0;
+        font-size: 12px;
+        text-decoration: underline;
+        cursor: pointer;
+      }
+      button.danger {
+        background: #d93025;
+      }
+      button.danger:hover {
+        background: #b8291d;
+      }
+
+      .company-edit-panel {
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid #f1f3f4;
+      }
+      .company-edit-desc {
+        font-size: 12px;
+        color: #5f6368;
+        margin-bottom: 10px;
+      }
+
+      .error-box {
+        background: #fce8e6;
+        color: #d93025;
+        padding: 12px;
+        border-radius: 6px;
+        margin-bottom: 16px;
+        border: 1px solid #fad2cf;
+        font-size: 14px;
+        line-height: 1.4;
+      }
+      .empty-state {
+        text-align: center;
+        color: #80868b;
+        padding: 60px 20px;
+        font-size: 14px;
+      }
+      .empty-state .big-icon {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 12px;
+        color: #b0b7c1;
+      }
+      .empty-state .big-icon svg {
+        width: 40px;
+        height: 40px;
+      }
+
+      /* --- First-run guide and plain-language status --- */
+      .guide {
+        background: white;
+        border: 1px solid #c6dafc;
+        border-radius: 8px;
+        padding: 16px 18px;
+        margin-bottom: 16px;
+      }
+      .guide h3 {
+        margin: 0 0 4px;
+        font-size: 16px;
+      }
+      .guide > p {
+        margin: 0 0 12px;
+        font-size: 13px;
+        color: #5f6368;
+      }
+      .guide-step {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        padding: 10px 0;
+        border-top: 1px solid #f1f3f4;
+      }
+      .guide-step .mark {
+        flex: none;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 600;
+        background: #f1f3f4;
+        color: #5f6368;
+      }
+      .guide-step.done .mark {
+        background: #e6f4ea;
+        color: #1e8e3e;
+      }
+      .guide-step.current .mark {
+        background: #1a73e8;
+        color: white;
+      }
+      .guide-step .body {
+        flex: 1;
+        min-width: 0;
+      }
+      .guide-step .title {
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .guide-step.done .title {
+        color: #5f6368;
+      }
+      .guide-step .hint {
+        font-size: 12px;
+        color: #5f6368;
+        margin-top: 2px;
+        line-height: 1.45;
+      }
+      .guide-step button {
+        flex: none;
+        margin-top: 2px;
+      }
+      .company-status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        margin: -4px 0 12px;
+        line-height: 1.4;
+      }
+      .company-status .dot {
+        flex: none;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #80868b;
+      }
+      .company-status.ok .dot { background: #1e8e3e; }
+      .company-status.busy .dot { background: #1a73e8; animation: pulse 1.2s ease-in-out infinite; }
+      .company-status.wait .dot { background: #f9ab00; }
+      .company-status.off .dot { background: #b0b7c1; }
+      @keyframes pulse { 50% { opacity: 0.35; } }
+      .auto-sync-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: #5f6368;
+        cursor: pointer;
+      }
+      .card-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .card .card-header {
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .success-box {
+        background: #e6f4ea;
+        border: 1px solid #ceead6;
+        color: #137333;
+        border-radius: 6px;
+        padding: 12px 14px;
+        margin-bottom: 16px;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .success-box strong {
+        display: block;
+        font-size: 14px;
+        margin-bottom: 2px;
+      }
+      .success-box button {
+        margin-top: 10px;
+      }
+      .card {
+        background: white;
+        border: 1px solid #e0e0e0;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      }
+      .card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+      .card-header-left {
+        display: flex;
+        align-items: center;
+      }
+      .card-header h3 {
+        margin: 0 0 0 10px;
+        font-size: 16px;
+        font-weight: 600;
+      }
+      .checkbox-container {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+      }
+      .checkbox-container input {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+        margin: 0;
+      }
+
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        background: #f8f9fa;
+        padding: 12px;
+        border-radius: 6px;
+        font-size: 13px;
+      }
+      .stat-label {
+        color: #5f6368;
+        margin-bottom: 4px;
+        font-size: 12px;
+      }
+      .stat-value {
+        font-weight: 500;
+        color: #202124;
+      }
+
+      .settings-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .field label {
+        display: block;
+        font-size: 12px;
+        color: #5f6368;
+        margin-bottom: 4px;
+      }
+      .field input[type="text"],
+      .field input[type="number"],
+      .field select {
+        width: 100%;
+        padding: 7px 9px;
+        border: 1px solid #dadce0;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+      .interval-row {
+        display: flex;
+        gap: 8px;
+      }
+      .interval-row input {
+        flex: 1;
+      }
+      .interval-row select {
+        flex: 1;
+      }
+      .checkbox-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      .checkbox-row input {
+        width: 16px;
+        height: 16px;
+        margin: 0;
+        cursor: pointer;
+      }
+      .checkbox-row label {
+        font-size: 13px;
+        color: #3c4043;
+        cursor: pointer;
+      }
+      .settings-footer {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 4px;
+      }
+      .settings-msg {
+        font-size: 13px;
+      }
+      .settings-msg.error {
+        color: #d93025;
+      }
+      .settings-msg.success {
+        color: #1e8e3e;
+      }
+
+      .subsection {
+        border-top: 1px solid #f1f3f4;
+        margin-top: 18px;
+        padding-top: 16px;
+      }
+      .subsection .card-header h3 {
+        font-size: 14px;
+      }
+      .subsection-desc {
+        font-size: 12px;
+        color: #80868b;
+        margin: -6px 0 12px;
+        line-height: 1.5;
+      }
+
+      /* --- Settings sub-tabs --- */
+      .tabs {
+        display: flex;
+        gap: 4px;
+        border-bottom: 1px solid #e0e0e0;
+        margin-bottom: 18px;
+      }
+      .tab {
+        padding: 10px 4px;
+        margin-right: 22px;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        color: #80868b;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        text-transform: uppercase;
+      }
+      .tab:hover {
+        color: #3c4043;
+      }
+      .tab.active {
+        color: #1a73e8;
+        border-bottom-color: #1a73e8;
+      }
+      .tab-panel {
+        display: none;
+      }
+      .tab-panel.active {
+        display: block;
+      }
+
+      .progress-container {
+        margin-bottom: 20px;
+      }
+      .progress-header {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        color: #5f6368;
+        margin-bottom: 4px;
+      }
+      .progress-track {
+        background: #e0e0e0;
+        border-radius: 4px;
+        height: 8px;
+        overflow: hidden;
+      }
+      .progress-bar {
+        background: #1a73e8;
+        height: 100%;
+        width: 0%;
+        transition: width 0.2s ease;
+      }
+
+      .discover-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 15px;
+        background: white;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        margin-bottom: 10px;
+      }
+      .discover-row .name {
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .added-badge {
+        color: #1e8e3e;
+        font-size: 13px;
+        font-weight: 500;
+      }
+
+      /* --- Info rows (Profile / System Info) --- */
+      .info-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid #f1f3f4;
+        font-size: 13px;
+        gap: 16px;
+      }
+      .info-row:last-child {
+        border-bottom: none;
+      }
+      .info-row .label {
+        color: #5f6368;
+        flex-shrink: 0;
+      }
+      .info-row .value {
+        color: #202124;
+        font-weight: 500;
+        text-align: right;
+        word-break: break-all;
+      }
+
+      body.auth-screen .sidebar {
+        display: none;
+      }
+      #page-sign-in {
+        max-width: 440px;
+        margin: 40px auto;
+      }
+      .auth-form {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .auth-field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .auth-field label {
+        color: #3c4043;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .auth-input {
+        width: 100%;
+        min-height: 44px;
+        padding: 10px 12px;
+        color: #202124;
+        background: #fff;
+        border: 1px solid #c7ced8;
+        border-radius: 7px;
+        outline: none;
+        font: inherit;
+        font-size: 14px;
+        transition:
+          border-color 120ms ease,
+          box-shadow 120ms ease;
+      }
+      .auth-input::placeholder {
+        color: #8993a2;
+      }
+      .auth-input:hover {
+        border-color: #8793a3;
+      }
+      .auth-input:focus {
+        border-color: #1a73e8;
+        box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.16);
+      }
+      .auth-form button[type="submit"] {
+        justify-content: center;
+        min-height: 42px;
+        margin-top: 2px;
+        border-radius: 7px;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body class="auth-screen">
+    <div class="app">
+      <div class="titlebar">
+        <div class="titlebar-left">
+          <img class="titlebar-logo" src="vyakth-logo-white.svg" alt="" aria-hidden="true" />
+          <span class="titlebar-title">VYAKTH Connector</span>
+        </div>
+        <div class="titlebar-controls">
+          <button
+            class="titlebar-btn"
+            id="maximize-btn"
+            title="Maximize"
+            onclick="window.electronAPI.toggleMaximizeWindow()"
+          >
+            <svg
+              id="maximize-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+            >
+              <rect x="5" y="5" width="14" height="14" rx="1" />
+            </svg>
+          </button>
+          <button
+            class="titlebar-btn close"
+            title="Close"
+            onclick="window.electronAPI.closeWindow()"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+            >
+              <line x1="5" y1="5" x2="19" y2="19" />
+              <line x1="19" y1="5" x2="5" y2="19" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="app-body">
+        <div class="sidebar">
+          <div
+            class="nav-item active"
+            data-page="companies"
+            onclick="showPage('companies')"
+          >
+            <span class="icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="4" y="3" width="9" height="18" rx="1" />
+                <rect x="14" y="9" width="6" height="12" rx="1" />
+                <circle
+                  cx="7"
+                  cy="7"
+                  r="0.6"
+                  fill="currentColor"
+                  stroke="none"
+                />
+                <circle
+                  cx="10"
+                  cy="7"
+                  r="0.6"
+                  fill="currentColor"
+                  stroke="none"
+                />
+                <circle
+                  cx="7"
+                  cy="11"
+                  r="0.6"
+                  fill="currentColor"
+                  stroke="none"
+                />
+                <circle
+                  cx="10"
+                  cy="11"
+                  r="0.6"
+                  fill="currentColor"
+                  stroke="none"
+                />
+                <circle
+                  cx="7"
+                  cy="15"
+                  r="0.6"
+                  fill="currentColor"
+                  stroke="none"
+                />
+                <circle
+                  cx="10"
+                  cy="15"
+                  r="0.6"
+                  fill="currentColor"
+                  stroke="none"
+                />
+              </svg>
+            </span>
+            My Companies
+          </div>
+          <div
+            class="nav-item"
+            data-page="add-company"
+            onclick="showPage('add-company')"
+          >
+            <span class="icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <line x1="12" y1="8" x2="12" y2="16" />
+                <line x1="8" y1="12" x2="16" y2="12" />
+              </svg>
+            </span>
+            Add Company
+          </div>
+          <div
+            class="nav-item"
+            data-page="settings"
+            onclick="showPage('settings')"
+          >
+            <span class="icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="12" cy="12" r="3" />
+                <path
+                  d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+                />
+              </svg>
+            </span>
+            Settings
+          </div>
+          <div
+            class="nav-item"
+            data-page="profile"
+            onclick="showPage('profile')"
+          >
+            <span class="icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            </span>
+            Profile
+          </div>
+        </div>
+
+        <div class="content">
+          <!-- Authentication is a dedicated entry screen, outside Settings. -->
+          <div id="page-sign-in" class="page active">
+            <div class="page-header"><h2>Welcome to VYAKTH Connector</h2></div>
+            <div id="pairing-container" class="card" style="display: block">
+              <div class="card-header">
+                <h3 style="margin-left: 0">Sign in to VYAKTH</h3>
+              </div>
+              <p style="font-size: 13px; color: #5f6368; margin: 0 0 10px">
+                Sign in with your VYAKTH account. Data stays queued locally
+                until you sign in.
+              </p>
+              <form
+                class="auth-form"
+                onsubmit="
+                  event.preventDefault();
+                  doSignIn();
+                "
+              >
+                <div class="auth-field">
+                  <label for="backend-email-input">Email</label>
+                  <input
+                    class="auth-input"
+                    id="backend-email-input"
+                    type="email"
+                    placeholder="you@example.com"
+                    autocomplete="username"
+                  />
+                </div>
+                <div class="auth-field">
+                  <label for="backend-password-input">Password</label>
+                  <input
+                    class="auth-input"
+                    id="backend-password-input"
+                    type="password"
+                    placeholder="Enter your password"
+                    autocomplete="current-password"
+                  />
+                </div>
+                <button id="pair-btn" type="submit">Sign in</button>
+              </form>
+              <div
+                id="pairing-error"
+                style="
+                  display: none;
+                  color: #d93025;
+                  font-size: 13px;
+                  margin-top: 8px;
+                "
+              ></div>
+            </div>
+          </div>
+
+          <!-- ===== My Companies ===== -->
+          <div id="page-companies" class="page">
+            <div class="page-header">
+              <h2>My Companies</h2>
+              <div style="display: flex; gap: 10px">
+                <button class="secondary" onclick="loadState()">Refresh</button>
+                <button id="sync-btn" onclick="doSync()">Sync Now</button>
+              </div>
+            </div>
+
+            <div
+              id="progress-container"
+              class="progress-container"
+              style="display: none"
+            >
+              <div class="progress-header">
+                <span id="progress-label">Syncing…</span>
+                <span id="progress-count"></span>
+              </div>
+              <div class="progress-track">
+                <div id="progress-bar" class="progress-bar"></div>
+              </div>
+            </div>
+
+            <div
+              id="error-container"
+              style="display: none"
+              class="error-box"
+            ></div>
+
+            <div id="add-success"></div>
+            <div id="guide"></div>
+            <div id="companies"></div>
+          </div>
+
+          <!-- ===== Edit Company (reached only via My Companies' Edit button, no nav item) ===== -->
+          <div id="page-edit-company" class="page">
+            <div class="page-header">
+              <h2>
+                <button
+                  class="back-link"
+                  onclick="showPage('companies')"
+                  title="Back to My Companies"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M15 18l-6-6 6-6" />
+                  </svg>
+                </button>
+                Edit Company
+              </h2>
+            </div>
+            <div class="card">
+              <div class="card-header">
+                <h3 style="margin-left: 0" id="edit-company-name"></h3>
+              </div>
+
+              <div
+                class="company-edit-panel"
+                style="margin-top: 0; padding-top: 0; border-top: none"
+              >
+                <div
+                  class="company-edit-desc"
+                  id="edit-company-sync-desc"
+                ></div>
+                <button
+                  class="secondary"
+                  id="edit-company-sync-btn"
+                  onclick="toggleSyncFromEditPage()"
+                ></button>
+              </div>
+
+              <div class="subsection">
+                <div class="card-header">
+                  <h3 style="margin-left: 0">Delete Company</h3>
+                </div>
+                <div class="company-edit-desc">
+                  Permanently deletes this company and everything synced for it
+                  (ledgers, vouchers, stock items, everything) from VYAKTH
+                  — not just this installation. This cannot be undone from here.
+                  Already-synced reports built on this company's data will stop
+                  working.
+                </div>
+                <button class="danger" onclick="deleteCurrentEditCompany()">
+                  Delete Company
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== Add Company ===== -->
+          <div id="page-add-company" class="page">
+            <div class="page-header">
+              <h2>Add Company</h2>
+              <button id="discover-btn" onclick="doDiscover()">
+                Discover from Tally
+              </button>
+            </div>
+            <div class="guide" style="border-color: #e0e0e0">
+              <h3>How to add a company</h3>
+              <p>Takes about a minute. Your data stays in Tally; VYAKTH keeps a copy so you can see reports anywhere.</p>
+              <div class="guide-step"><div class="mark">1</div><div class="body"><div class="title">Open the company in TallyPrime on this computer</div><div class="hint">Only companies that are open in Tally show up below.</div></div></div>
+              <div class="guide-step"><div class="mark">2</div><div class="body"><div class="title">Click <em>Approve &amp; add</em> next to it</div><div class="hint">Needs an internet connection. It must use the same Tally licence as your other companies, and counts towards your plan's company limit.</div></div></div>
+              <div class="guide-step"><div class="mark">3</div><div class="body"><div class="title">The first sync starts by itself</div><div class="hint">Keep TallyPrime open until it finishes. After that, the connector keeps your reports up to date automatically.</div></div></div>
+            </div>
+            <div id="discover-results"></div>
+          </div>
+
+          <!-- ===== Settings ===== -->
+          <div id="page-settings" class="page">
+            <div class="page-header"><h2>Settings</h2></div>
+
+            <div class="tabs">
+              <div
+                class="tab active"
+                data-tab="tally"
+                onclick="showSettingsTab('tally')"
+              >
+                Tally
+              </div>
+              <div
+                class="tab"
+                data-tab="sync"
+                onclick="showSettingsTab('sync')"
+              >
+                Sync
+              </div>
+              <div
+                class="tab"
+                data-tab="additional"
+                onclick="showSettingsTab('additional')"
+              >
+                Additional
+              </div>
+            </div>
+
+            <div class="card">
+              <div id="tab-tally" class="tab-panel active">
+                <div class="card-header">
+                  <h3 style="margin-left: 0">Tally Configuration</h3>
+                </div>
+                <div class="settings-grid">
+                  <div class="field">
+                    <label for="tally-host">Tally host / IP</label>
+                    <input
+                      id="tally-host"
+                      type="text"
+                      placeholder="127.0.0.1"
+                    />
+                  </div>
+                  <div class="field">
+                    <label for="tally-port">Tally port</label>
+                    <input
+                      id="tally-port"
+                      type="number"
+                      min="1"
+                      max="65535"
+                      placeholder="9000"
+                    />
+                  </div>
+                </div>
+
+                <div class="subsection">
+                  <div class="card-header">
+                    <h3 style="margin-left: 0">Proxy</h3>
+                  </div>
+                  <p class="subsection-desc">
+                    Enable this if this machine reaches the internet through a
+                    network proxy — this is only for the connection to VYAKTH
+                    Cloud, never for reaching Tally (always local). Format:
+                    https://username:password@host:port
+                  </p>
+                  <div class="checkbox-row">
+                    <input id="proxy-enabled" type="checkbox" />
+                    <label for="proxy-enabled">Enable proxy setting</label>
+                  </div>
+                  <div class="field" id="proxy-url-field" style="display: none">
+                    <label for="proxy-url">Proxy URL</label>
+                    <input
+                      id="proxy-url"
+                      type="text"
+                      placeholder="https://username:password@host:port"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div id="tab-sync" class="tab-panel">
+                <div class="card-header">
+                  <h3 style="margin-left: 0">Sync Frequency</h3>
+                </div>
+                <div class="field" style="margin-bottom: 4px">
+                  <label>Auto-sync every</label>
+                  <div class="interval-row">
+                    <input
+                      id="sync-interval-value"
+                      type="number"
+                      min="1"
+                      placeholder="20"
+                    />
+                    <select id="sync-interval-unit">
+                      <option value="minutes">Minutes</option>
+                      <option value="hours">Hours</option>
+                      <option value="days">Days</option>
+                    </select>
+                  </div>
+                </div>
+                <div
+                  id="auto-sync-status"
+                  style="font-size: 12px; color: #80868b; margin-top: 4px"
+                ></div>
+
+                <div class="subsection">
+                <div class="card-header"><h3>Outstanding Reports</h3></div>
+                <p class="subsection-desc">Receivables and payables are fetched separately, after master and voucher uploads finish.</p>
+                <div class="checkbox-row"><input id="outstanding-report-sync-enabled" type="checkbox"><label for="outstanding-report-sync-enabled">Sync outstanding reports automatically</label></div>
+                <div class="field">
+                  <label for="outstanding-report-sync-frequency">Report refresh interval</label>
+                  <div class="interval-row">
+                    <input
+                      id="outstanding-report-sync-frequency"
+                      type="number"
+                      min="1"
+                      value="1"
+                    />
+                    <select id="outstanding-report-sync-unit">
+                      <option value="minutes">Minutes</option>
+                      <option value="hours" selected>Hours</option>
+                      <option value="days">Days</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="subsection">
+                  <div class="card-header">
+                    <h3 style="margin-left: 0">Sync Deleted Vouchers</h3>
+                  </div>
+                  <p class="subsection-desc">
+                    Removes vouchers deleted in Tally from your reports.
+                  </p>
+                  <div class="checkbox-row">
+                    <input id="deleted-voucher-sync-enabled" type="checkbox" />
+                    <label for="deleted-voucher-sync-enabled"
+                      >Enable Sync Deleted Vouchers</label
+                    >
+                  </div>
+                  <div
+                    class="field"
+                    id="deleted-voucher-sync-frequency-field"
+                    style="max-width: 200px; display: none"
+                  >
+                    <label for="deleted-voucher-sync-frequency"
+                      >Frequency (in minutes)</label
+                    >
+                    <input
+                      id="deleted-voucher-sync-frequency"
+                      type="number"
+                      min="15"
+                      max="1440"
+                      placeholder="60"
+                    />
+                  </div>
+                </div>
+
+                <div class="subsection">
+                  <div class="card-header">
+                    <h3 style="margin-left: 0">Tally Retry Setting</h3>
+                  </div>
+                  <p class="subsection-desc">
+                    How many times to retry a Tally request if it fails, before
+                    giving up on that step for this sync.
+                  </p>
+                  <div class="field">
+                    <label for="tally-retry-attempts">Retry attempts</label>
+                    <input
+                      id="tally-retry-attempts"
+                      type="number"
+                      min="0"
+                      max="10"
+                      placeholder="2"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div id="tab-additional" class="tab-panel">
+                <div class="card-header">
+                  <h3 style="margin-left: 0">Notifications</h3>
+                </div>
+                <p class="subsection-desc" style="margin-top: -2px">
+                  Shows a Windows notification if a sync run fails while this
+                  app is running.
+                </p>
+                <div class="checkbox-row">
+                  <input id="notifications-enabled" type="checkbox" />
+                  <label for="notifications-enabled"
+                    >Enable notifications</label
+                  >
+                </div>
+
+                <div class="subsection">
+                  <div class="card-header">
+                    <h3 style="margin-left: 0">Chunk Data</h3>
+                  </div>
+                  <p class="subsection-desc">
+                    If a company has a large number of ledgers/stock items, each
+                    master list is split into chunks of this size before
+                    uploading, so a single sync doesn't send one oversized
+                    request.
+                  </p>
+                  <div class="field" style="max-width: 200px">
+                    <label for="master-chunk-size">Chunk size</label>
+                    <input
+                      id="master-chunk-size"
+                      type="number"
+                      min="100"
+                      max="10000"
+                      placeholder="2000"
+                    />
+                  </div>
+                </div>
+
+                <div class="subsection">
+                  <div class="card-header">
+                    <h3 style="margin-left: 0">Startup</h3>
+                  </div>
+                  <div class="checkbox-row" style="margin-bottom: 0">
+                    <input id="launch-at-login" type="checkbox" />
+                    <label for="launch-at-login"
+                      >Start automatically when Windows starts</label
+                    >
+                  </div>
+                </div>
+              </div>
+
+              <div class="settings-footer">
+                <button id="save-settings-btn" onclick="doSaveSettings()">
+                  Save Settings
+                </button>
+                <span id="settings-msg" class="settings-msg"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== Profile ===== -->
+          <div id="page-profile" class="page">
+            <div class="page-header"><h2>Profile</h2></div>
+            <p class="page-desc">
+              Your Tally data syncs to this VYAKTH account.
+            </p>
+            <div id="profile-unpaired" class="card" style="display: none">
+              <div class="empty-state" style="padding: 30px 20px">
+                <div>Not signed in yet.</div>
+                <div style="margin-top: 10px">
+                  <button onclick="showPage('sign-in')">Sign in</button>
+                </div>
+              </div>
+            </div>
+            <div id="profile-paired" class="card" style="display: none">
+              <div class="card-header">
+                <h3 style="margin-left: 0">Account</h3>
+              </div>
+              <div class="info-row">
+                <span class="label">Email</span
+                ><span class="value" id="profile-installation-id"></span>
+              </div>
+              <div class="info-row">
+                <span class="label">Signed in since</span
+                ><span class="value" id="profile-paired-at"></span>
+              </div>
+              <div class="info-row">
+                <span class="label">Connector ID</span
+                ><span class="value" id="profile-connector-id"></span>
+              </div>
+              <div class="info-row">
+                <span class="label">License</span
+                ><span class="value" id="license-status"></span>
+              </div>
+              <div style="margin-top: 12px">
+                <button class="danger" id="logout-btn" onclick="doLogout()">
+                  Logout
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <script>
+      // Pages reachable only from another page (not from the sidebar) have no nav item of their
+      // own — this maps such a page back to whichever nav item should still read as "active" while
+      // it's showing.
+      const NAV_ITEM_FOR_PAGE = { "edit-company": "companies" };
+
+      let authenticated = false;
+      let stateLoaded = false;
+      function showPage(name) {
+        if (!authenticated && name !== "sign-in") name = "sign-in";
+        document.body.classList.toggle("auth-screen", name === "sign-in");
+        for (const el of document.querySelectorAll(".page"))
+          el.classList.remove("active");
+        for (const el of document.querySelectorAll(".nav-item"))
+          el.classList.remove("active");
+        document.getElementById("page-" + name).classList.add("active");
+        const navPageName = NAV_ITEM_FOR_PAGE[name] || name;
+        const navItem = document.querySelector(
+          '.nav-item[data-page="' + navPageName + '"]',
+        );
+        if (navItem) navItem.classList.add("active");
+        if (name === "add-company") {
+          document.getElementById("discover-results").innerHTML = "";
+          document.getElementById("add-success").innerHTML = "";
+          // Most people arrive here to add the company they have open, so look right away.
+          if (authenticated) doDiscover();
+        }
+      }
+
+      function showSettingsTab(name) {
+        for (const el of document.querySelectorAll(".tab-panel"))
+          el.classList.remove("active");
+        for (const el of document.querySelectorAll(".tab"))
+          el.classList.remove("active");
+        document.getElementById("tab-" + name).classList.add("active");
+        document
+          .querySelector('.tab[data-tab="' + name + '"]')
+          .classList.add("active");
+      }
+
+      // --- Titlebar window controls ---
+      const MAXIMIZE_ICON = '<rect x="5" y="5" width="14" height="14" rx="1"/>';
+      const RESTORE_ICON =
+        '<rect x="8" y="4" width="12" height="12" rx="1"/><rect x="4" y="8" width="12" height="12" rx="1"/>';
+      window.electronAPI.onWindowMaximizedChange((isMaximized) => {
+        const btn = document.getElementById("maximize-btn");
+        const icon = document.getElementById("maximize-icon");
+        icon.innerHTML = isMaximized ? RESTORE_ICON : MAXIMIZE_ICON;
+        btn.title = isMaximized ? "Restore" : "Maximize";
+      });
+
+      // Decomposes a minutes value into whichever of days/hours/minutes divides it evenly, so
+      // e.g. 2880 shows as "2 Days" rather than "2880 Minutes" — purely a display choice, the
+      // stored/sent value is always normalized back to minutes on save.
+      function minutesToUnitValue(totalMinutes) {
+        if (totalMinutes > 0 && totalMinutes % 1440 === 0)
+          return { value: totalMinutes / 1440, unit: "days" };
+        if (totalMinutes > 0 && totalMinutes % 60 === 0)
+          return { value: totalMinutes / 60, unit: "hours" };
+        return { value: totalMinutes, unit: "minutes" };
+      }
+
+      function unitValueToMinutes(value, unit) {
+        const perUnit = { minutes: 1, hours: 60, days: 1440 };
+        return Math.round(value * (perUnit[unit] || 1));
+      }
+
+      // Formats a sync run's duration for display — null means never synced (or the run that
+      // last started hasn't finished yet, e.g. it's still in progress).
+      function formatDuration(ms) {
+        if (ms === null || ms === undefined) return "—";
+        if (ms < 1000) return "Less than 1 sec";
+        const totalSeconds = Math.max(0, Math.round(ms / 1000));
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        const parts = [];
+        if (hours) parts.push(hours + " hr");
+        if (minutes) parts.push(minutes + " min");
+        if (seconds || parts.length === 0) parts.push(seconds + " sec");
+        return parts.join(" ");
+      }
+
+      let settingsFormDirty = false;
+
+      async function toggleSyncEnabled(companyId, companyName, checkbox) {
+        checkbox.disabled = true;
+        await window.electronAPI.toggleSync(
+          companyId,
+          companyName,
+          checkbox.checked,
+        );
+        checkbox.disabled = false;
+      }
+
+      // Set by openEditCompany, read by deleteCurrentEditCompany/toggleSyncFromEditPage — the Edit
+      // Company page has no nav item of its own (only reachable via a company card's Edit button),
+      // so it needs somewhere to remember which company it's showing.
+      let editingCompanyId = null;
+      let editingCompanyName = null;
+      let editingCompanySyncEnabled = true;
+
+      function renderEditCompanySyncState() {
+        const desc = document.getElementById("edit-company-sync-desc");
+        const btn = document.getElementById("edit-company-sync-btn");
+        if (editingCompanySyncEnabled) {
+          desc.innerText =
+            "This company is currently syncing on the interval set in Settings → Sync.";
+          btn.innerText = "Stop Syncing";
+        } else {
+          desc.innerText =
+            "This company is not syncing — already-synced data stays on the cloud, but nothing new is sent until you resume.";
+          btn.innerText = "Resume Syncing";
+        }
+      }
+
+      function openEditCompany(companyId, companyName, syncEnabled) {
+        editingCompanyId = companyId;
+        editingCompanyName = companyName;
+        editingCompanySyncEnabled = !!syncEnabled;
+        document.getElementById("edit-company-name").innerText = companyName;
+        renderEditCompanySyncState();
+        showPage("edit-company");
+      }
+
+      async function toggleSyncFromEditPage() {
+        const btn = document.getElementById("edit-company-sync-btn");
+        btn.disabled = true;
+        const next = !editingCompanySyncEnabled;
+        await window.electronAPI.toggleSync(
+          editingCompanyId,
+          editingCompanyName,
+          next,
+        );
+        editingCompanySyncEnabled = next;
+        renderEditCompanySyncState();
+        btn.disabled = false;
+        await loadState(); // keeps the My Companies card's own checkbox in sync
+      }
+
+      async function removeCompany(companyId, companyName) {
+        if (
+          !confirm(
+            'Remove "' +
+              companyName +
+              '" from VYAKTH?\n\n' +
+              "Its reports will be hidden, sync authorization revoked and its company slot released. Data stays on the server until a platform admin restores or permanently deletes it. Removal requires an online connection.",
+          )
+        )
+          return false;
+        const result = await window.electronAPI.removeCompany(companyId);
+        if (!result.ok) {
+          alert("Could not delete: " + result.error);
+          return false;
+        }
+        await loadState();
+        return true;
+      }
+
+      async function doLogout() {
+        if (!confirm("Log out of VYAKTH?\n\nSyncing stops until you sign in again."))
+          return;
+        const btn = document.getElementById("logout-btn");
+        btn.disabled = true;
+        await window.electronAPI.signOut();
+        btn.disabled = false;
+        await loadState();
+      }
+
+      async function deleteCurrentEditCompany() {
+        const deleted = await removeCompany(
+          editingCompanyId,
+          editingCompanyName,
+        );
+        if (deleted) showPage("companies");
+      }
+
+      async function retryBatchNow(id, button) {
+        button.disabled = true;
+        button.textContent = "Retrying…";
+        try {
+          await window.electronAPI.retryBatchNow(id);
+          await loadState();
+        } catch (error) {
+          button.disabled = false;
+          button.textContent = "Retry now";
+          alert(error instanceof Error ? error.message : String(error));
+        }
+      }
+
+      // Maps the engine's technical error text to something a non-technical user can act on.
+      function friendlyError(raw, fallback) {
+        const message = String(raw || "");
+        if (/retained removed data/i.test(message))
+          return "This company was removed from your account earlier. Ask VYAKTH support to restore it (keeps its old data) or permanently delete it (starts fresh), then add it again.";
+        if (/ECONNREFUSED|ENOTFOUND|ETIMEDOUT|ECONNRESET|EAI_AGAIN|Network Error|socket hang up|timeout/i.test(message) && !/tally/i.test(message))
+          return "Can't reach VYAKTH. Check your internet connection. Syncing will resume on its own.";
+        if (/CONNECTOR_LIMIT/i.test(message))
+          return "Your plan's connector limit is reached. Disable an unused connector in the VYAKTH dashboard under Connector licensing, then try again.";
+        if (/DEVICE_UNAUTHORIZED|DEVICE_DISABLED/i.test(message))
+          return "This connector was disabled in the VYAKTH dashboard. Reinstall the connector to sync from this computer.";
+        if (/Approve this company|not approved|add it online/i.test(message))
+          return "A company isn't activated yet. Go to Add Company to activate it.";
+        if (/Tally serial does not match/i.test(message))
+          return "This company's Tally license doesn't match the one registered to your account.";
+        if (/HTTP 401|Session expired|Sign in/i.test(message))
+          return "Your session has expired. Please sign in again.";
+        if (/clock or backend changed|renew authorization/i.test(message))
+          return "The connector needs to reconnect to VYAKTH. Make sure you're online.";
+        if (/HTTP 403/i.test(message))
+          return "VYAKTH didn't accept this sync. Check that your plan and companies are active.";
+        if (/tally|127\.0\.0\.1|:9000/i.test(message))
+          return "Couldn't read data from Tally. Make sure TallyPrime is open with the company loaded.";
+        return fallback ?? "Some data couldn't be synced yet. It will retry automatically.";
+      }
+
+      function primarySyncError(state) {
+        return (
+          (state.isSignedIn && state.licensing?.error) ||
+          state.lastError ||
+          state.failedBatches?.[0]?.lastError ||
+          state.blockedBatches?.[0]?.reason
+        );
+      }
+
+      // One plain-language line for the current problem, or null when nothing needs attention.
+      function syncIssueSummary(state) {
+        const hasIssue =
+          (state.isSignedIn && state.licensing?.error) ||
+          state.lastError ||
+          state.failedBatches?.length ||
+          state.blockedBatches?.length ||
+          state.failedFetches?.length;
+        return hasIssue ? friendlyError(primarySyncError(state)) : null;
+      }
+
+      async function openDashboard() {
+        try {
+          await window.electronAPI.openDashboard();
+        } catch (error) {
+          alert("Couldn't open your browser. Go to the VYAKTH website and sign in to see your reports.");
+        }
+      }
+
+      // One sentence per company telling a first-time user what is happening and what, if
+      // anything, they need to do.
+      function companyStatus(comp, state, latestSync) {
+        const minutes = Math.round((state.autoSyncIntervalMs || 0) / 60000);
+        if (!comp.approved)
+          return { tone: "wait", text: "Not activated yet. Open Add Company and click Approve & add." };
+        if (!comp.syncEnabled)
+          return { tone: "off", text: "Auto-sync is off. Nothing new is sent until you turn it back on." };
+        if (syncRunning)
+          return {
+            tone: "busy",
+            text: latestSync
+              ? "Updating now. Keep TallyPrime open."
+              : "First sync in progress. Keep TallyPrime open until it finishes; large companies can take a while.",
+          };
+        if (!state.tallyReachable)
+          return { tone: "wait", text: "TallyPrime isn't open on this computer. Syncing continues by itself once it is." };
+        if (!latestSync)
+          return { tone: "wait", text: "Waiting for the first sync. Click Sync Now to start it." };
+        return {
+          tone: "ok",
+          text:
+            "Up to date. Your reports are ready in VYAKTH" +
+            (minutes ? `, and refresh every ${minutes} min while TallyPrime is open.` : "."),
+        };
+      }
+
+      // Step-by-step guide shown until the first company has finished its first sync.
+      function renderGuide(state) {
+        const guide = document.getElementById("guide");
+        const companies = state.companies || [];
+        const added = companies.some((c) => c.approved);
+        const synced = companies.some((c) => c.approved && c.lastFullSyncAtMs);
+        guide.innerHTML = "";
+        if (synced) return;
+        const steps = [
+          {
+            done: true,
+            title: "Signed in to VYAKTH",
+            hint: "This computer is connected to " + (state.accountEmail || "your account") + ".",
+          },
+          {
+            done: added,
+            title: "Add your Tally company",
+            hint: "Open the company in TallyPrime, then add it here. Only companies open in Tally can be added.",
+            action: { label: "Add Company", run: () => showPage("add-company") },
+          },
+          {
+            done: false,
+            title: syncRunning ? "First sync in progress…" : "Send your data to VYAKTH",
+            hint: syncRunning
+              ? "Keep TallyPrime open. You can close this window; the connector keeps working from the system tray."
+              : !state.tallyReachable
+                ? "TallyPrime isn't open. Open it with your company loaded, then click Sync Now."
+                : "Starts by itself after adding a company. The first time copies everything, so it can take a while.",
+            action: syncRunning ? null : { label: "Sync Now", run: doSync },
+          },
+          {
+            done: false,
+            title: "See your reports",
+            hint: "When the first sync finishes, open VYAKTH in your browser and sign in with the same account.",
+          },
+        ];
+        const current = steps.findIndex((step) => !step.done);
+        const box = document.createElement("div");
+        box.className = "guide";
+        const heading = document.createElement("h3");
+        heading.textContent = "Getting started";
+        const intro = document.createElement("p");
+        intro.textContent =
+          "Follow these steps once. After that the connector runs in the background and keeps your reports up to date.";
+        box.append(heading, intro);
+        steps.forEach((step, index) => {
+          const row = document.createElement("div");
+          row.className = "guide-step" + (step.done ? " done" : index === current ? " current" : "");
+          const mark = document.createElement("div");
+          mark.className = "mark";
+          mark.textContent = step.done ? "✓" : String(index + 1);
+          const body = document.createElement("div");
+          body.className = "body";
+          const title = document.createElement("div");
+          title.className = "title";
+          title.textContent = step.title;
+          const hint = document.createElement("div");
+          hint.className = "hint";
+          hint.textContent = step.hint;
+          body.append(title, hint);
+          row.append(mark, body);
+          if (step.action && index === current) {
+            const button = document.createElement("button");
+            button.textContent = step.action.label;
+            button.onclick = step.action.run;
+            row.appendChild(button);
+          }
+          box.appendChild(row);
+        });
+        guide.appendChild(box);
+      }
+
+      function showAddSuccess(companyName) {
+        const box = document.getElementById("add-success");
+        box.innerHTML = "";
+        const panel = document.createElement("div");
+        panel.className = "success-box";
+        const title = document.createElement("strong");
+        title.textContent = companyName + " is added.";
+        const text = document.createElement("div");
+        text.textContent =
+          "Its first sync has started. Keep TallyPrime open until it finishes; you can follow progress below. You can close this window, and the connector keeps working from the system tray.";
+        const button = document.createElement("button");
+        button.className = "secondary";
+        button.textContent = "OK";
+        button.onclick = () => (box.innerHTML = "");
+        panel.append(title, text, button);
+        box.appendChild(panel);
+      }
+
+      async function loadState() {
+        const state = await window.electronAPI.getState();
+        authenticated = state.isSignedIn;
+        if (!authenticated) showPage("sign-in");
+        else if (!stateLoaded) showPage("companies");
+        stateLoaded = true;
+        for (const nav of document.querySelectorAll(".nav-item")) {
+          nav.style.display = authenticated ? "" : "none";
+        }
+        document.getElementById("sync-btn").disabled = !authenticated;
+
+        const errDiv = document.getElementById("error-container");
+
+        const autoSyncDiv = document.getElementById("auto-sync-status");
+        if (state.autoSyncIntervalMs) {
+          const intervalMin = Math.round(state.autoSyncIntervalMs / 60000);
+          const lastAttempt = state.lastAutoSyncAttempt
+            ? new Date(state.lastAutoSyncAttempt).toLocaleTimeString()
+            : "never";
+          autoSyncDiv.innerText = `Auto-sync runs every ${intervalMin} min · last attempt: ${lastAttempt}`;
+        }
+        if (
+          (state.isSignedIn && state.licensing?.error) ||
+          state.lastError ||
+          state.failedBatches?.length ||
+          state.blockedBatches?.length ||
+          state.failedFetches?.length
+        ) {
+          // Re-rendered every 5s, so keep "Show details" open if the user expanded it.
+          const detailsWasOpen = !!errDiv.querySelector("details")?.open;
+          errDiv.style.display = "block";
+          errDiv.innerHTML = "";
+          const failedBatches = state.failedBatches || [];
+          const blockedBatches = state.blockedBatches || [];
+          const failedFetches = state.failedFetches || [];
+          const headline = document.createElement("div");
+          headline.style.fontWeight = "600";
+          headline.textContent = friendlyError(primarySyncError(state));
+          errDiv.appendChild(headline);
+
+          const addLine = (text) => {
+            const line = document.createElement("div");
+            line.style.marginTop = "4px";
+            line.textContent = text;
+            errDiv.appendChild(line);
+          };
+          for (const failed of failedFetches) {
+            const company = state.companies.find(
+              (c) => c.guid === failed.companyId,
+            );
+            addLine(
+              `Couldn't read some data from Tally for ${company?.name || "a company"}. It will try again in 30 minutes.`,
+            );
+          }
+          if (failedBatches.length)
+            addLine(
+              `${failedBatches.length} upload${failedBatches.length === 1 ? "" : "s"} waiting to be retried. This happens automatically.`,
+            );
+          if (blockedBatches.length)
+            addLine(
+              `${blockedBatches.length} upload${blockedBatches.length === 1 ? "" : "s"} couldn't be completed. Contact VYAKTH support if this doesn't clear up.`,
+            );
+
+          // Raw messages stay available for support, just not front and centre.
+          const details = document.createElement("details");
+          details.open = detailsWasOpen;
+          details.style.marginTop = "8px";
+          details.style.fontSize = "12px";
+          const summary = document.createElement("summary");
+          summary.textContent = "Show details";
+          summary.style.cursor = "pointer";
+          details.appendChild(summary);
+          const addDetail = (text, retryBatchId) => {
+            const row = document.createElement("div");
+            row.style.marginTop = "6px";
+            row.textContent = text + " ";
+            if (retryBatchId) {
+              const retry = document.createElement("button");
+              retry.className = "secondary";
+              retry.textContent = "Retry now";
+              retry.onclick = () => retryBatchNow(retryBatchId, retry);
+              row.appendChild(retry);
+            }
+            details.appendChild(row);
+          };
+          if (state.isSignedIn && state.licensing?.error)
+            addDetail("Authorization: " + state.licensing.error);
+          if (state.lastError) addDetail("Last sync: " + state.lastError);
+          for (const batch of failedBatches)
+            addDetail(
+              `${batch.companyName} · ${batch.entityType}: ${batch.lastError || "Upload failed"}`,
+              batch.id,
+            );
+          for (const batch of blockedBatches)
+            addDetail("Blocked: " + batch.reason);
+          if (details.children.length > 1) errDiv.appendChild(details);
+        } else {
+          errDiv.style.display = "none";
+        }
+
+        // Don't clobber an in-progress edit — the auto-refresh (every 5s) would otherwise
+        // overwrite whatever the user is currently typing before they hit Save.
+        if (!settingsFormDirty && state.connectorSettings) {
+          document.getElementById("tally-host").value =
+            state.connectorSettings.tallyHost;
+          document.getElementById("tally-port").value =
+            state.connectorSettings.tallyPort;
+          const { value, unit } = minutesToUnitValue(
+            state.connectorSettings.syncIntervalMinutes,
+          );
+          document.getElementById("sync-interval-value").value = value;
+          document.getElementById("sync-interval-unit").value = unit;
+          document.getElementById("launch-at-login").checked =
+            !!state.connectorSettings.launchAtLogin;
+          document.getElementById("proxy-enabled").checked =
+            !!state.connectorSettings.proxyEnabled;
+          document.getElementById("proxy-url").value =
+            state.connectorSettings.proxyUrl || "";
+          document.getElementById("proxy-url-field").style.display = state
+            .connectorSettings.proxyEnabled
+            ? "block"
+            : "none";
+          document.getElementById("tally-retry-attempts").value =
+            state.connectorSettings.tallyRetryAttempts;
+          document.getElementById("notifications-enabled").checked =
+            !!state.connectorSettings.notificationsEnabled;
+          document.getElementById("master-chunk-size").value =
+            state.connectorSettings.masterChunkSize;
+          document.getElementById("deleted-voucher-sync-enabled").checked =
+            !!state.connectorSettings.deletedVoucherSyncEnabled;
+          document.getElementById("deleted-voucher-sync-frequency").value =
+            state.connectorSettings.deletedVoucherSyncFrequencyMinutes;
+          document.getElementById(
+            "deleted-voucher-sync-frequency-field",
+          ).style.display = state.connectorSettings.deletedVoucherSyncEnabled
+            ? "block"
+            : "none";
+        }
+
+        if (!settingsFormDirty && state.connectorSettings) {
+          document.getElementById('outstanding-report-sync-enabled').checked = !!state.connectorSettings.outstandingReportSyncEnabled;
+          const outstandingInterval = minutesToUnitValue(
+            state.connectorSettings.outstandingReportSyncFrequencyMinutes,
+          );
+          document.getElementById('outstanding-report-sync-frequency').value = outstandingInterval.value;
+          document.getElementById('outstanding-report-sync-unit').value = outstandingInterval.unit;
+        }
+        notifyOnNewSyncError(state);
+
+        if (state.isSignedIn) {
+          document.getElementById("license-status").innerText = state.licensing?.authorized
+            ? `Active · Tally serial ${state.licensing.serial}`
+            : state.licensing?.error
+              ? friendlyError(state.licensing.error)
+              : "Not activated yet. Add a company to activate.";
+        }
+
+        document.getElementById("profile-unpaired").style.display =
+          state.isSignedIn ? "none" : "block";
+        document.getElementById("profile-paired").style.display =
+          state.isSignedIn ? "block" : "none";
+        if (state.isSignedIn) {
+          document.getElementById("profile-installation-id").innerText =
+            state.accountEmail || "—";
+          // First 8 chars, matching the dashboard's Connector installations list.
+          document.getElementById("profile-connector-id").innerText =
+            state.installationId
+              ? state.installationId.slice(0, 8).toUpperCase()
+              : "—";
+          document.getElementById("profile-paired-at").innerText =
+            state.signedInAt
+              ? new Date(state.signedInAt).toLocaleString()
+              : "—";
+        }
+
+        const compDiv = document.getElementById("companies");
+        compDiv.innerHTML = "";
+
+        renderGuide(state);
+
+        for (const comp of state.companies) {
+          let totalRecords = 0;
+          let latestSync = 0;
+
+          for (const stats of comp.entities) {
+            totalRecords += stats.recordCount;
+            if (stats.lastSyncAt !== "Never") {
+              const ts =
+                stats.lastSyncAtMs || new Date(stats.lastSyncAt).getTime();
+              if (ts > latestSync) latestSync = ts;
+            }
+          }
+          // Prefer the whole run (fetch + upload) over individual entity fetch times, which are
+          // often a few milliseconds and made "Time Taken" read "Less than 1 sec".
+          if (comp.lastFullSyncAtMs) latestSync = comp.lastFullSyncAtMs;
+
+          const lastSyncStr =
+            latestSync > 0 ? new Date(latestSync).toLocaleString() : "Never";
+          const timeTakenStr = formatDuration(comp.lastFullSyncDurationMs);
+
+          const compEl = document.createElement("div");
+          compEl.className = "card";
+
+          const checkedAttr = comp.syncEnabled ? "checked" : "";
+
+          compEl.innerHTML = `
+          <div class="card-header">
+            <div class="card-header-left">
+              <h3 style="margin-left: 0"></h3>
+            </div>
+            <div class="card-actions">
+              <label class="auto-sync-label" title="When on, this company is sent to VYAKTH automatically">
+                <input type="checkbox" ${checkedAttr}> Auto-sync
+              </label>
+              <button class="secondary" data-action="reports">Open reports</button>
+              <button class="secondary" data-action="edit">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                Edit
+              </button>
+            </div>
+          </div>
+          <div class="company-status"><span class="dot"></span><span class="text"></span></div>
+          <div class="stats-grid">
+            <div>
+              <div class="stat-label">Last Sync</div>
+              <div class="stat-value">${lastSyncStr}</div>
+            </div>
+            <div>
+              <div class="stat-label">Time Taken</div>
+              <div class="stat-value">${timeTakenStr}</div>
+            </div>
+            <div>
+              <div class="stat-label">Total Records</div>
+              <div class="stat-value">${totalRecords}</div>
+            </div>
+          </div>
+        `;
+          compEl.querySelector("h3").textContent = comp.name;
+          const status = companyStatus(comp, state, latestSync);
+          compEl.querySelector(".company-status").classList.add(status.tone);
+          compEl.querySelector(".company-status .text").textContent = status.text;
+          const toggle = compEl.querySelector('input[type="checkbox"]');
+          toggle.onchange = () =>
+            toggleSyncEnabled(comp.guid, comp.name, toggle);
+          compEl.querySelector('[data-action="reports"]').onclick = openDashboard;
+          compEl.querySelector('[data-action="edit"]').onclick = () =>
+            openEditCompany(comp.guid, comp.name, comp.syncEnabled);
+          compDiv.appendChild(compEl);
+        }
+      }
+
+      async function doDiscover() {
+        const btn = document.getElementById("discover-btn");
+        const resultsDiv = document.getElementById("discover-results");
+        btn.disabled = true;
+        btn.innerText = "Discovering...";
+        resultsDiv.innerHTML = "";
+
+        try {
+          const result = await window.electronAPI.discoverCompanies();
+          if (!result.ok) {
+            resultsDiv.textContent =
+              result.error || "Could not discover companies";
+            return;
+          }
+          if (!result.tallyReachable) {
+            resultsDiv.textContent =
+              "Tally is not reachable. Open Tally and try again.";
+            return;
+          }
+          if (!result.companies.length) {
+            resultsDiv.textContent =
+              "No companies are currently open in Tally.";
+            return;
+          }
+          for (const company of result.companies) {
+            const row = document.createElement("div");
+            row.className = "discover-row";
+            const name = document.createElement("span");
+            name.className = "name";
+            name.textContent = company.name;
+            const add = document.createElement("button");
+            add.textContent = company.added ? "Added" : "Approve & add";
+            add.disabled = company.added;
+            add.onclick = async () => {
+              add.disabled = true;
+              try {
+                const result = await window.electronAPI.addCompany(
+                  company.guid,
+                );
+                if (!result.ok) throw new Error(result.error);
+                add.textContent = "Added";
+                showAddSuccess(company.name);
+                showPage("companies");
+                await loadState();
+              } catch (error) {
+                add.disabled = false;
+                const raw = error.message || "Could not add company";
+                alert(friendlyError(raw, raw));
+              }
+            };
+            row.append(name, add);
+            resultsDiv.appendChild(row);
+          }
+        } catch (error) {
+          resultsDiv.textContent =
+            error.message || "Could not discover companies";
+        } finally {
+          btn.disabled = false;
+          btn.innerText = "Discover from Tally";
+        }
+      }
+
+      function renderSyncProgress(progress) {
+        syncRunning = !!progress?.inProgress;
+        const container = document.getElementById("progress-container");
+        if (!progress || !progress.inProgress) {
+          container.style.display = "none";
+          return;
+        }
+        container.style.display = "block";
+        const pct =
+          progress.total > 0
+            ? Math.round((progress.completed / progress.total) * 100)
+            : 0;
+        document.getElementById("progress-bar").style.width = pct + "%";
+        const label = progress.currentLabel || "Syncing…";
+        document.getElementById("progress-label").innerText =
+          label === "Uploading to cloud"
+            ? "Step 2 of 2 · Uploading to VYAKTH"
+            : progress.total > 0
+              ? "Step 1 of 2 · Reading from Tally: " + label
+              : label;
+        document.getElementById("progress-count").innerText =
+          `${progress.completed}/${progress.total} · ${pct}%`;
+      }
+
+      // Pushed live from the main process (sync.ts's step loop) rather than only polled on the 5s
+      // refresh, so the bar actually moves smoothly instead of jumping on each refresh tick.
+      window.electronAPI.onSyncProgress(renderSyncProgress);
+
+      async function doSync() {
+        const btn = document.getElementById("sync-btn");
+        btn.disabled = true;
+        btn.innerText = "Syncing...";
+        await window.electronAPI.syncNow();
+        await loadState();
+        btn.disabled = false;
+        btn.innerText = "Sync Now";
+      }
+
+      async function doSignIn() {
+        const input = document.getElementById("backend-password-input");
+        const btn = document.getElementById("pair-btn");
+        const errDiv = document.getElementById("pairing-error");
+        errDiv.style.display = "none";
+
+        btn.disabled = true;
+        btn.innerText = "Signing in...";
+        const result = await window.electronAPI.signIn(
+          document.getElementById("backend-email-input").value.trim(),
+          input.value,
+        );
+        btn.disabled = false;
+        btn.innerText = "Sign in";
+
+        if (result.ok) {
+          input.value = "";
+          await loadState();
+          showPage("companies");
+        } else {
+          errDiv.style.display = "block";
+          errDiv.innerText = result.error;
+        }
+      }
+
+      async function doSaveSettings() {
+        const btn = document.getElementById("save-settings-btn");
+        const msg = document.getElementById("settings-msg");
+        msg.className = "settings-msg";
+        msg.innerText = "";
+
+        const settings = {
+          tallyHost: document.getElementById("tally-host").value.trim(),
+          tallyPort: Number(document.getElementById("tally-port").value),
+          syncIntervalMinutes: unitValueToMinutes(
+            Number(document.getElementById("sync-interval-value").value),
+            document.getElementById("sync-interval-unit").value,
+          ),
+          launchAtLogin: document.getElementById("launch-at-login").checked,
+          proxyEnabled: document.getElementById("proxy-enabled").checked,
+          proxyUrl: document.getElementById("proxy-url").value.trim(),
+          tallyRetryAttempts: Number(
+            document.getElementById("tally-retry-attempts").value,
+          ),
+          notificationsEnabled: document.getElementById("notifications-enabled")
+            .checked,
+          masterChunkSize: Number(
+            document.getElementById("master-chunk-size").value,
+          ),
+          deletedVoucherSyncEnabled: document.getElementById(
+            "deleted-voucher-sync-enabled",
+          ).checked,
+          outstandingReportSyncEnabled: document.getElementById('outstanding-report-sync-enabled').checked,
+          outstandingReportSyncFrequencyMinutes: unitValueToMinutes(
+            Number(document.getElementById('outstanding-report-sync-frequency').value),
+            document.getElementById('outstanding-report-sync-unit').value,
+          ),
+          deletedVoucherSyncFrequencyMinutes: Number(
+            document.getElementById("deleted-voucher-sync-frequency").value,
+          ),
+        };
+
+        btn.disabled = true;
+        btn.innerText = "Saving...";
+        const result = await window.electronAPI.saveConnectorSettings(settings);
+        btn.disabled = false;
+        btn.innerText = "Save Settings";
+
+        if (result.ok) {
+          settingsFormDirty = false;
+          msg.className = "settings-msg success";
+          msg.innerText = "Saved";
+          await loadState();
+        } else {
+          msg.className = "settings-msg error";
+          msg.innerText = result.error;
+        }
+      }
+
+      for (const id of [
+        "tally-host",
+        "tally-port",
+        "sync-interval-value",
+        "sync-interval-unit",
+        "launch-at-login",
+        "proxy-enabled",
+        "proxy-url",
+        "tally-retry-attempts",
+        "notifications-enabled",
+        "master-chunk-size",
+        "deleted-voucher-sync-enabled",
+        "deleted-voucher-sync-frequency",
+        "outstanding-report-sync-enabled",
+        "outstanding-report-sync-frequency",
+        "outstanding-report-sync-unit",
+      ]) {
+        document.getElementById(id).addEventListener("input", () => {
+          settingsFormDirty = true;
+        });
+        document.getElementById(id).addEventListener("change", () => {
+          settingsFormDirty = true;
+        });
+      }
+
+      document
+        .getElementById("proxy-enabled")
+        .addEventListener("change", (e) => {
+          document.getElementById("proxy-url-field").style.display = e.target
+            .checked
+            ? "block"
+            : "none";
+        });
+
+      document
+        .getElementById("deleted-voucher-sync-enabled")
+        .addEventListener("change", (e) => {
+          document.getElementById(
+            "deleted-voucher-sync-frequency-field",
+          ).style.display = e.target.checked ? "block" : "none";
+        });
+
+      // --- Sync-failure notifications (Settings → Additional → Enable notifications) ---
+      // Renderer-driven rather than main-process-driven: this Settings window is only hidden (not
+      // destroyed) on close (see settings.ts), so its 5s loadState() poll — and this check — keeps
+      // running in the background even while the window isn't visible, same as the rest of the UI.
+      if (window.Notification && Notification.permission === "default") {
+        Notification.requestPermission();
+      }
+      // Raw per-batch errors change constantly mid-sync (each failing batch has its own text), so
+      // notifications key off the friendly category instead, only once a sync has finished, and
+      // never repeat the same category within NOTIFY_REPEAT_MS.
+      const NOTIFY_REPEAT_MS = 6 * 60 * 60 * 1000;
+      const lastNotifiedAt = new Map();
+      let syncRunning = false;
+      let notificationsPrimed = false;
+      function notifyOnNewSyncError(state) {
+        const issue = syncIssueSummary(state);
+        // Whatever is already wrong when the app starts shows in the banner; don't toast it.
+        if (!notificationsPrimed) {
+          notificationsPrimed = true;
+          if (issue) lastNotifiedAt.set(issue, Date.now());
+          return;
+        }
+        const enabled =
+          state.connectorSettings &&
+          state.connectorSettings.notificationsEnabled;
+        if (
+          !issue ||
+          syncRunning ||
+          !enabled ||
+          !window.Notification ||
+          Notification.permission !== "granted"
+        )
+          return;
+        if (Date.now() - (lastNotifiedAt.get(issue) ?? 0) < NOTIFY_REPEAT_MS)
+          return;
+        lastNotifiedAt.set(issue, Date.now());
+        new Notification("VYAKTH Connector", { body: issue });
+      }
+
+      // Initial load
+      loadState();
+      window.electronAPI.getSyncProgress().then(renderSyncProgress);
+
+      // Auto-refresh every 5 seconds
+      setInterval(loadState, 5000);
+    </script>
+  </body>
+</html>
