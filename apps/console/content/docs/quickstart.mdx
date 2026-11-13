@@ -11,8 +11,8 @@ description: From a new account to your first ledger and your first write.
 In the console, open **API keys** and choose **Create API key**. Choose **Full access** for this walkthrough, then copy the key. It's shown once.
 
 ```sh
-export API=https://api.example.com
-export KEY=hx_live_...
+export API='http://localhost:3000' # replace with your deployed API origin if needed
+export KEY='replace_with_your_saved_project_key'
 ```
 
 </Step>
@@ -34,7 +34,7 @@ curl $API/v1/connections -H "authorization: Bearer $KEY"
 ### Read ledgers
 
 ```sh
-export ID=<connection id>
+export ID='replace_with_connection_uuid'
 curl "$API/v1/connections/$ID/ledgers?limit=10" -H "authorization: Bearer $KEY"
 ```
 
@@ -43,7 +43,7 @@ curl "$API/v1/connections/$ID/ledgers?limit=10" -H "authorization: Bearer $KEY"
 
 ### Post a receipt
 
-Amounts are in paise, and debits must equal credits. The `idempotency-key` makes the request safe to retry.
+Use a simulated or dedicated test company while real Tally verification is pending. Amounts are in paise, debits must equal credits, and both ledger names must exist in that company. The `idempotency-key` returns the same job when the same operation is retried; real Tally duplicate behavior still needs verification.
 
 ```sh
 curl -X POST $API/v1/connections/$ID/receipts \

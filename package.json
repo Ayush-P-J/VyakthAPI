@@ -10,7 +10,9 @@
     "typecheck": "pnpm -r typecheck",
     "build": "node scripts/build.mjs",
     "db:dev": "docker compose -f docker-compose.dev.yml -p hxdev up -d --wait postgres",
-    "generate": "pnpm --filter @hexspare/tally-engine generate"
+    "generate": "pnpm --filter @hexspare/tally-engine generate",
+    "docs:generate": "tsx scripts/generate-openapi.ts",
+    "docs:check": "tsx scripts/generate-openapi.ts --check && node scripts/check-openapi.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

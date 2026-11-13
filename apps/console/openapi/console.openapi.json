@@ -1,10 +1,12 @@
 {
   "openapi": "3.1.0",
   "info": { "title": "Hexspare console API", "version": "1", "description": "The API behind the developer console. The console reaches it at /console-api, which maps to /console/v1 on the API." },
+  "servers": [{ "url": "/console-api", "description": "Same-origin console proxy" }, { "url": "http://localhost:3000/console/v1", "description": "Direct local API" }],
+  "security": [{ "sessionCookie": [] }],
   "paths": {
-    "/auth/signup": { "post": { "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SignupRequest" } } } }, "responses": { "201": { "description": "Account created and signed in", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Profile" } } } } } } },
-    "/auth/login": { "post": { "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoginRequest" } } } }, "responses": { "200": { "description": "Signed in", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Profile" } } } } } } },
-    "/auth/logout": { "post": { "responses": { "204": { "description": "Signed out" } } } },
+    "/auth/signup": { "post": { "security": [], "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SignupRequest" } } } }, "responses": { "201": { "description": "Account created and signed in", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Profile" } } } } } } },
+    "/auth/login": { "post": { "security": [], "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoginRequest" } } } }, "responses": { "200": { "description": "Signed in", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Profile" } } } } } } },
+    "/auth/logout": { "post": { "security": [], "responses": { "204": { "description": "Signed out" } } } },
     "/me": { "get": { "responses": { "200": { "description": "The signed-in user", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Profile" } } } } } } },
     "/projects/{id}/overview": { "get": { "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "Counts for one project", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProjectOverview" } } } } } } },
     "/projects": { "post": { "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NewProjectRequest" } } } }, "responses": { "201": { "description": "Project created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Project" } } } } } } },
@@ -23,6 +25,7 @@
     "/projects/{id}/usage": { "get": { "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "month", "in": "query", "schema": { "type": "string" } }], "responses": { "200": { "description": "One month of usage, in India time", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Usage" } } } } } } }
   },
   "components": {
+    "securitySchemes": { "sessionCookie": { "type": "apiKey", "in": "cookie", "name": "hx_session", "description": "Console login session. Mutations carrying Origin require a match with CONSOLE_URL." } },
     "schemas": {
       "SignupRequest": { "type": "object", "required": ["name", "company", "email", "password"], "properties": { "name": { "type": "string" }, "company": { "type": "string" }, "email": { "type": "string" }, "password": { "type": "string" } } },
       "LoginRequest": { "type": "object", "required": ["email", "password"], "properties": { "email": { "type": "string" }, "password": { "type": "string" } } },

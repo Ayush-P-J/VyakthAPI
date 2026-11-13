@@ -1,0 +1,50 @@
+---
+title: Using the console
+description: What each screen does, when to use it, and how to complete common tasks.
+---
+
+The console is the management UI. Open `http://localhost:3001` for a local Docker deployment, or your configured console domain. Public API integrations use the separate API origin on port 3000 locally.
+
+## Accounts and projects
+
+Sign up with your name, organization, email and password. Signup creates an organization and initial project. Sign in with that email and password on later visits. Email verification and password reset are not available yet.
+
+Select the project you want to manage. Create another project when you need separate keys, customer connections and usage for a different application or environment. The sandbox flag shown by the UI is metadata; it does not automatically route a connector to simulated Tally.
+
+## Screens
+
+| Screen | What it contains | When and how to use it |
+|---|---|---|
+| Overview | Connection totals, active connections, online connectors, open Tally instances and key count | Start here to check whether the project is connected and reachable. |
+| Connections | Company status and recent connect links | Choose **Connect a customer**, copy the link, then send it to the customer. Check online/Tally/sync status here. Revoke access when an integration ends. |
+| API keys | Key prefixes, scope, creation/last-use dates and revoked keys | Create server credentials. Copy the complete key when shown; save it in your backend's secret store. Revoke it when it is lost or replaced. |
+| Webhooks | Endpoints, subscribed events, delivery status and recent delivery errors | Subscribe your backend to job results or record changes. Save the signing secret on creation. Pause/resume or delete an endpoint; inspect the latest 50 deliveries and resend a failed one. |
+| Write jobs | Job status, company/dataset, request details and errors | After a write, locate the job and inspect its final result. Filter by status or connection. A queued/sent job has not yet confirmed posting. |
+| Usage | Monthly calls and weighted units by connection | Estimate activity and investigate which connection generates calls. The console month uses India time. There is no payment collection yet. |
+
+## Create a key
+
+Use **Read only** for reporting integrations, a write-capable preset when posting entries, and **Full access** for setup that also needs administrative endpoints. Read the scopes shown before creating the key. Scopes are independent: an `admin` scope alone does not grant reads or writes.
+
+Changing a key means creating a replacement and updating the backend, then revoking the old key. A key's full secret cannot be retrieved from the key list. Browser login cookies are separate from these API credentials.
+
+## Connect a company
+
+1. Open **Connections** and choose **Connect a customer**.
+2. Set the label, expiry, requested access and optional return URL. Copy the generated URL while it is visible.
+3. The customer starts the connector on the PC running Tally and enrolls with the link token.
+4. On the connect page, the customer selects a company and field privacy rules, then approves.
+5. Return to **Connections**. Check the company's status and wait for its first sync before expecting synced records.
+
+A link is single-use. Cancel an unused link from the console if it should no longer be accepted. Revoking a connected company stops access and rejects unfinished jobs; it does not delete its stored history.
+
+The requested read/write access is shown in the connect flow, but connection-level write consent is not currently enforced. Use API-key scopes to control write access until that gap is implemented.
+
+## Public pages and features outside the console
+
+- `/docs`: these guides, available without signing in.
+- `/pricing`: pricing model with placeholder amounts.
+- `/connect/<token>`: customer company selection and privacy approval, without a developer login.
+- `/openapi/public.openapi.json`: downloadable public API contract.
+
+Custom-field discovery, mapping, rollback and record reads/writes are API workflows. The console inspects write jobs but does not provide a voucher-entry form. Follow [Read data](/docs/read-data), [Write to Tally](/docs/write-to-tally), and [Custom fields](/docs/custom-fields).

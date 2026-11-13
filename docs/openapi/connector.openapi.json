@@ -1,0 +1,1104 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Hexspare connector and connect-page API",
+    "version": "0.1.0",
+    "description": "Internal HTTP protocol, for connector maintainers and the customer consent page. Application integrations should use the public API. The WebSocket channel is documented in docs/architecture.md; OpenAPI covers HTTP only."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local Docker API"
+    },
+    {
+      "url": "https://api.example.com",
+      "description": "Replace with your deployed API origin"
+    }
+  ],
+  "security": [
+    {
+      "deviceSecret": []
+    }
+  ],
+  "paths": {
+    "/connector/v1/enroll": {
+      "post": {
+        "summary": "Enroll new device or attach existing device to a connect link",
+        "operationId": "post__connector_v1_enroll",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "linkToken": {
+                    "type": "string",
+                    "minLength": 10,
+                    "maxLength": 200
+                  },
+                  "appVersion": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "companies": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 300
+                        },
+                        "guid": {
+                          "type": "string",
+                          "maxLength": 200
+                        },
+                        "serial": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 64
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "booksFrom": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 20
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "guid",
+                        "serial",
+                        "booksFrom"
+                      ]
+                    },
+                    "maxItems": 200
+                  }
+                },
+                "required": [
+                  "linkToken",
+                  "companies"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "installationId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "deviceSecret": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "installationId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "API error; inspect error.code, message and optional details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "deviceSecret": []
+          }
+        ]
+      }
+    },
+    "/connector/v1/connections": {
+      "get": {
+        "summary": "List this installation's connections",
+        "operationId": "get__connector_v1_connections",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "company": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "consent": {
+                        "type": "object"
+                      },
+                      "bundleHash": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "schemaVersion": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "company",
+                      "status",
+                      "consent",
+                      "bundleHash",
+                      "schemaVersion"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "API error; inspect error.code, message and optional details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/connector/v1/connections/{id}/bundle": {
+      "get": {
+        "summary": "Fetch signed active bundle",
+        "operationId": "get__connector_v1_connections_id_bundle",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "API error; inspect error.code, message and optional details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/connector/v1/connections/{id}/batches": {
+      "post": {
+        "summary": "Ingest sync batch; commit watermark after durable upload",
+        "operationId": "post__connector_v1_connections_id_batches",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "batchId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "dataset": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "bundleHash": {
+                    "type": "string",
+                    "minLength": 64,
+                    "maxLength": 64
+                  },
+                  "mode": {
+                    "enum": [
+                      "initial",
+                      "delta",
+                      "repair"
+                    ]
+                  },
+                  "records": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[0-9]{1,18}$"
+                        },
+                        "alterId": {
+                          "type": "string",
+                          "pattern": "^[0-9]{1,18}$"
+                        },
+                        "body": {
+                          "type": "object",
+                          "additionalProperties": true
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "alterId",
+                        "body"
+                      ]
+                    },
+                    "maxItems": 5000
+                  },
+                  "commit": {
+                    "type": "object",
+                    "properties": {
+                      "watermark": {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    },
+                    "required": [
+                      "watermark"
+                    ]
+                  }
+                },
+                "required": [
+                  "batchId",
+                  "dataset",
+                  "bundleHash",
+                  "mode",
+                  "records"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "applied": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "applied"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "API error; inspect error.code, message and optional details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/connector/v1/connections/{id}/keys": {
+      "post": {
+        "summary": "Reconcile deleted records and detect repair needs",
+        "operationId": "post__connector_v1_connections_id_keys",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "dataset": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[0-9]{1,18}$"
+                    },
+                    "maxItems": 5000000
+                  },
+                  "maxAlterId": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "dataset",
+                  "ids",
+                  "maxAlterId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "integer"
+                    },
+                    "held": {
+                      "type": "boolean"
+                    },
+                    "repairNeeded": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "deleted",
+                    "held",
+                    "repairNeeded"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "API error; inspect error.code, message and optional details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/connector/v1/connections/{id}/issues": {
+      "post": {
+        "summary": "Report sync issue",
+        "operationId": "post__connector_v1_connections_id_issues",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "message": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "dataset": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind",
+                  "message"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "API error; inspect error.code, message and optional details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/connector/v1/connections/{id}/revoke": {
+      "post": {
+        "summary": "Customer revokes sharing",
+        "operationId": "post__connector_v1_connections_id_revoke",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "const": "revoked"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "status"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "API error; inspect error.code, message and optional details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/connector/v1/jobs/claim": {
+      "post": {
+        "summary": "Claim earliest unfinished job per connection, masters first",
+        "operationId": "post__connector_v1_jobs_claim",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Envelope"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "API error; inspect error.code, message and optional details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/connector/v1/jobs/{id}/result": {
+      "post": {
+        "summary": "Report terminal job result; first result wins",
+        "operationId": "post__connector_v1_jobs_id_result",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "completed",
+                      "failed",
+                      "rejected"
+                    ]
+                  },
+                  "tallyId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "created": {
+                    "type": "integer"
+                  },
+                  "altered": {
+                    "type": "integer"
+                  },
+                  "errors": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "path": {
+                          "type": "string",
+                          "maxLength": 200
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    },
+                    "maxItems": 500
+                  },
+                  "deduplicated": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "status",
+                  "tallyId",
+                  "created",
+                  "altered",
+                  "errors"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "API error; inspect error.code, message and optional details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/connect/{token}": {
+      "get": {
+        "summary": "Redirect legacy API connect URL to console",
+        "operationId": "get__connect_token_",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Secret cl_ token from a connect link; do not log or expose it."
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to CONSOLE_URL/connect/{token}",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/connect/{token}/state": {
+      "get": {
+        "summary": "Get customer approval flow state",
+        "operationId": "get__connect_token_state",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Secret cl_ token from a connect link; do not log or expose it."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "enum": [
+                        "connected",
+                        "expired",
+                        "awaiting_approval",
+                        "awaiting_connector"
+                      ]
+                    },
+                    "project": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "requestedScopes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "companies": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "guid": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "guid"
+                        ]
+                      }
+                    },
+                    "requestedFields": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "dataset": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "suggested": {
+                            "type": "string",
+                            "enum": [
+                              "public",
+                              "masked",
+                              "excluded"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "dataset",
+                          "name",
+                          "suggested"
+                        ]
+                      }
+                    },
+                    "standardFields": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "dataset": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "suggested": {
+                            "type": "string",
+                            "enum": [
+                              "public",
+                              "masked",
+                              "excluded"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "dataset",
+                          "name",
+                          "suggested"
+                        ]
+                      }
+                    },
+                    "redirect": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "project",
+                    "label",
+                    "requestedScopes",
+                    "companies",
+                    "requestedFields",
+                    "standardFields",
+                    "redirect"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "API error; inspect error.code, message and optional details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/connect/{token}/approve": {
+      "post": {
+        "summary": "Choose company and approve field privacy",
+        "operationId": "post__connect_token_approve",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Secret cl_ token from a connect link; do not log or expose it."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "companyGuid": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "rules": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "enum": [
+                        "public",
+                        "masked",
+                        "excluded"
+                      ]
+                    },
+                    "default": {}
+                  },
+                  "customDefault": {
+                    "type": "string",
+                    "enum": [
+                      "public",
+                      "masked",
+                      "excluded"
+                    ],
+                    "default": "masked"
+                  }
+                },
+                "required": [
+                  "companyGuid"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "connectionId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "redirect": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "connectionId",
+                    "redirect"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "API error; inspect error.code, message and optional details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "deviceSecret": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "hxd_ device secret returned on first enrollment; not a project API key."
+      }
+    },
+    "schemas": {
+      "ApiError": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            }
+          }
+        }
+      },
+      "Envelope": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "bundle",
+              "job",
+              "probe"
+            ]
+          },
+          "kid": {
+            "type": "string"
+          },
+          "payload": {},
+          "sig": {
+            "type": "string",
+            "description": "Ed25519 signature, base64url encoded."
+          }
+        },
+        "required": [
+          "kind",
+          "kid",
+          "payload",
+          "sig"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,45 @@
+---
+title: OpenAPI reference
+description: Download the API contracts, import them into Postman, and get a company-specific schema.
+---
+
+## Choose a contract
+
+| Contract | Use it for | Authentication |
+|---|---|---|
+| [Public API JSON](/openapi/public.openapi.json) | Application integrations: all 24 Standard pack datasets, writes, connections, custom fields, webhooks, usage and health | Project API key as a Bearer token; health endpoints are public |
+| [Console API JSON](/openapi/console.openapi.json) | Maintaining the console and its generated client types | Console `hx_session` cookie |
+| [Connector and connect-page JSON](/openapi/connector.openapi.json) | Maintaining device enrollment, sync, jobs and customer approval | Device Bearer secret or secret connect token, depending on the endpoint |
+
+These are OpenAPI 3.1 documents. The public file describes the baseline Standard pack. A customer's actual fields may differ due to custom mappings and privacy rules.
+
+## Use with Postman
+
+1. Download **Public API JSON**, then import the file into Postman.
+2. Select `http://localhost:3000` or replace the server URL with your deployed API origin. Public paths already start with `/v1`.
+3. Set collection/request authentication to **Bearer Token**, using the API key saved from your project's **API keys** screen.
+4. Replace the connection and record IDs with real values from your project.
+5. Start with `GET /v1/connections`, then read the selected company's `/schema` and `/ledgers`.
+6. For writes, use the documented `LedgerInput` or `VoucherInput`, send `Content-Type: application/json` and a project-unique `Idempotency-Key`, and inspect the returned job.
+
+Operations include `x-required-scope` to identify the precise API-key scope. An admin scope alone does not imply read/write scope. Use the example bodies and constraints in the input schemas rather than sending an unmodified read response as write input.
+
+## Download a company's schema
+
+The `/schema` endpoint returns an envelope containing `version`, `bundleHash`, `datasets` and **`openapi`**. Extract `openapi` to get an importable document:
+
+```sh
+curl --fail --silent --show-error "$API/v1/connections/$ID/schema" \
+  -H "Authorization: Bearer $KEY" -o connection-schema.json
+node -e 'const fs=require("node:fs"); const s=JSON.parse(fs.readFileSync("connection-schema.json","utf8")); fs.writeFileSync("connection.openapi.json",JSON.stringify(s.openapi,null,2)+"\n")'
+```
+
+Import `connection.openapi.json` into Postman or another OpenAPI 3.1 tool. Its paths include `/v1`; configure the tool's server URL to the API origin. This document covers that connection's dataset operations and field types. Use the complete public contract for management endpoints such as connect links, webhooks and usage.
+
+The OpenAPI document is saved in an immutable signed bundle at publication time. Existing connections can therefore return an older document after a software update. Upgrading the server does not rewrite a previously published bundle. New schema publications use the current generator; rollback returns the earlier saved document.
+
+## Console and device details
+
+The console contract uses `/console-api` on the console origin, or `/console/v1` on the API origin. Do not add `/v1` to those paths. Console mutation requests carrying an `Origin` header must match `CONSOLE_URL`.
+
+The connector document describes HTTP only. The persistent WebSocket at `/connector/v1/channel` carries signed probes, replies, status and nudges; its protocol is described in the repository's `docs/architecture.md`.

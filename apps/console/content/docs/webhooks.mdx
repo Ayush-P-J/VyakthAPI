@@ -51,9 +51,13 @@ export function isFromHexspare(header: string, rawBody: string, secret: string) 
 
 ## Retries and duplicates
 
-Answer with any 2xx status within 10 seconds. We don't follow redirects. A failed delivery is retried up to 8 times, waiting longer each time.
+Answer with any 2xx status within 10 seconds. We don't follow redirects. There are at most 8 automatic delivery attempts in total. Retry delays grow from about 30 seconds (30, 60, 120 seconds, and so on). After the last failure, delivery waits for manual replay/resend.
 
 An event can reach you more than once. Use the `X-Hexspare-Event-Id` header to ignore repeats.
+
+Verify the signature against the exact raw body before parsing JSON, reject stale timestamps, then persist/process the event idempotently. Return 2xx quickly and do longer work asynchronously. Do not use a webhook event as an ordered, complete historical export: initial sync suppresses record-created/updated events, and delivery order is not guaranteed. Bootstrap from synced records first.
+
+Record-created/updated `data` contains `connectionId`, `dataset`, `id`, `alterId` and `record`. Deletions contain connection/dataset/ID. Job results contain `jobId`, `connectionId`, `dataset`, `idempotencyKey`, `status`, `tallyId` and `errors`. Schema publication contains `connectionId`, `version` and `bundleHash`. Connection events describe the active/revoked status.
 
 ## If your server was down
 
@@ -66,3 +70,7 @@ curl -X POST $API/v1/webhooks/$HOOK/replay -H "authorization: Bearer $KEY" \
 ```
 
 The console's **Webhooks** page shows the latest 50 deliveries for each webhook, why any failed, and a button to resend one.
+
+The public events API returns `data` with `deliveryId`, `event`, `payload`, `attempts` and `deliveredAt`, plus `nextCursor`. The delivery ID differs from the event ID in the payload/header. At the end of this delivery log, a non-empty `nextCursor` may repeat; stop when a page is empty and retain the last cursor for later polling. Pass that cursor to replay to resend later deliveries. Omitting it replays all deliveries for that endpoint, including ones already delivered.
+
+Public `/v1` supports creating/listing endpoints and reading/replaying logs. Pause/resume, endpoint deletion and resending one specific delivery are console management operations.

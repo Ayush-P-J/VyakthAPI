@@ -9,6 +9,20 @@ Each connection has datasets such as `ledgers`. To see the datasets and fields a
 curl $API/v1/connections/$ID/schema -H "authorization: Bearer $KEY"
 ```
 
+The response wraps the importable document inside `openapi`. See [OpenAPI reference](/docs/openapi) for extraction and Postman import.
+
+## Which datasets to use
+
+| Need | Datasets |
+|---|---|
+| Accounts, hierarchy and cost classification | `ledgers`, `ledger_groups`, `cost_centres`, `cost_categories`, `voucher_types` |
+| Inventory masters | `stock_items`, `stock_groups`, `stock_categories`, `godowns`, `units` |
+| Cash and adjustment vouchers | `receipts`, `payments`, `contras`, `journals` |
+| Commercial vouchers | `sales`, `purchases`, `credit_notes`, `debit_notes`, `sales_orders`, `purchase_orders` |
+| Stock movements | `delivery_notes`, `receipt_notes`, `stock_journals`, `physical_stock` |
+
+All 24 support reads. Writes currently support only ledgers and the four cash/adjustment voucher datasets.
+
 ## Synced reads
 
 These come from our copy, so they work when the customer's PC is off.
@@ -28,6 +42,10 @@ curl "$API/v1/connections/$ID/ledgers?limit=100&updatedSince=2026-11-01T00:00:00
 
 To read one record, use `GET /v1/connections/{id}/{dataset}/{recordId}`.
 
+Lists return `{data,nextCursor,meta}`. Keep requesting the returned `nextCursor` with the same filters until it is `null`. Cursors are opaque and preserve database timestamp precision; do not decode/rebuild them. Records include `id`, `alterId` and `updatedAt`, plus dataset fields. Deleted records are omitted from lists by default; a synced single-record lookup can still return a tombstone with `deleted: true`.
+
+For incremental mirroring, save a timestamp before starting a poll, page through all results after your previous timestamp with `includeDeleted=true`, apply records/tombstones by ID, then advance your checkpoint only after the whole poll succeeds. Use a small overlap and deduplicate by record identity/version to tolerate concurrent changes. This is a changing dataset rather than a snapshot export. `updatedSince` filters cloud record-update time, rather than voucher business date.
+
 ## Live reads
 
 Add `live=true` to ask Tally now. Tally must be open on the customer's PC. For a date range, add `from` and `to` as `YYYY-MM-DD`.
@@ -37,9 +55,15 @@ curl "$API/v1/connections/$ID/receipts?live=true&from=2026-04-01&to=2026-04-30" 
   -H "authorization: Bearer $KEY"
 ```
 
+Live responses include `truncated`, `nextCursor: null` and `meta: {mode: "live"}`. Live lists have no cursor pagination. Narrow the date range if truncated, or use synced reads for a complete export. For date-paged voucher datasets, omitted bounds default to the current UTC month. Live mode ignores `cursor`, `updatedSince`, `fields` and `includeDeleted`; date bounds are used only for date-paged datasets. Live reads do not update the cloud cache and normally omit synced `updatedAt`/`deleted` metadata.
+
+## Value types
+
+IDs and AlterIDs are strings. Dates normalize to `YYYY-MM-DD` or `null`; logical values to booleans or `null`. Amounts normalize to `{paise,side}`, where `side` is `Dr`, `Cr` or `null`. Quantities/rates normalize to `{value,unit}`. Unknown/unparseable values can be `null`. Child collections remain arrays. Check the connection schema for exact fields; masked values and excluded fields depend on customer policy.
+
 ## How fresh is the data?
 
-Every response about a connection has these headers:
+Connection detail, schema, discovery and dataset read/write responses include freshness headers. Connection lists and revoke responses do not include them; `X-Tally-Last-Sync` is omitted until a sync exists:
 
 | Header | Meaning |
 |---|---|
@@ -48,9 +72,11 @@ Every response about a connection has these headers:
 | `X-Tally-Open` | Whether Tally is open, so live calls and writes can run now. |
 | `X-Tally-Last-Sync` | When data last arrived from Tally. |
 
+This last-sync time is the latest across the connection's datasets, not a guarantee that every dataset is equally fresh. Synced list `meta` also reports `lastSyncAt` and `tallyOpen`.
+
 ## Custom fields
 
-To find the custom fields in a customer's Tally, call `GET /v1/connections/{id}/discovery`. To add one to a dataset, call `POST /v1/connections/{id}/schema/fields`, which publishes a new schema version. To go back, call `POST /v1/connections/{id}/schema/rollback`.
+To find the custom fields in a customer's Tally, call `GET /v1/connections/{id}/discovery`. To add one to a dataset, call `POST /v1/connections/{id}/schema/fields`, which publishes a new schema version. To go back, call `POST /v1/connections/{id}/schema/rollback`. Follow [Custom fields](/docs/custom-fields) for request examples, privacy and version behavior.
 
 <Callout type="warn">
   Custom-field discovery and writes haven't been tested on a real TallyPrime yet.

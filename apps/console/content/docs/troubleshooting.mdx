@@ -1,0 +1,42 @@
+---
+title: Troubleshooting
+description: Diagnose missing data, unavailable Tally, pending jobs, signup and webhook failures.
+---
+
+Start with the **Connections** page or `GET /v1/connections/{id}`. Check `status`, `connectorOnline`, `tallyOpen`, `lastSeenAt`, `lastSyncAt` and `schemaVersion`. A connection being active does not mean its connector is online or its first sync is complete.
+
+| Symptom | Likely reason | Next action |
+|---|---|---|
+| No companies on the connect page | Connector has not enrolled, or no company was reported | Start Tally with a test company and run `connector connect <link-token>` using the correct API origin and trusted public key. |
+| `invalid_link`, expired link or `link_used` | Invalid/expired invitation, or it was already approved | Create a fresh customer link; use the full `cl_...` token for enrollment. |
+| Connector offline | CLI stopped, wrong cloud origin, device state changed, network/WebSocket issue | Keep `connector run` active; inspect its logs and the proxy's WebSocket upgrade path. Preserve its SQLite state. |
+| Tally unavailable with connector online | Local HTTP interface unreachable or no usable company open | Check the local Tally host/port and company. Synced reads remain available for active connections. |
+| Synced list empty | First sync pending, wrong project/connection/dataset, or filters exclude records | Check `lastSyncAt`, retry without filters and inspect connector sync logs. |
+| Live result incomplete | Live reads return a bounded response and have no cursor pagination | Check `truncated`; narrow date ranges. Use synced pagination for a full historical export. |
+| Field missing or `null` | Privacy exclusion/masking, wrong mapping, or value absent/unparseable | Compare the active `/schema`, customer's rules and mapping. Discovery samples are always masked. |
+| Write stays `queued`/`sent` | Connector/Tally unavailable, ambiguous import retry, or an earlier job is pending | Inspect connector logs and the oldest job for the connection. Do not issue new business keys merely to force retries. |
+| Write `failed` or `rejected` | Input/preflight/import error | Inspect `errors[].code`, `message`, `path`; fix the underlying issue. Use a new idempotency key for a corrected operation. |
+| `409 idempotency_conflict` | That key already identifies a different request in the project | Retry the exact original request, or choose a new key for a genuinely different business operation. |
+| `403 bad_origin` at login | Browser address differs from configured console URL | Correct `CONSOLE_URL` including scheme/host/port, then recreate cloud services. |
+| Signup closed or login throttled | `ALLOW_SIGNUP=false` or too many failed attempts | Use an existing account; respect the throttle interval. There is no password reset flow yet. |
+| Webhook never arrives | Worker stopped, endpoint paused, URL/DNS/TLS problem or repeated receiver failures | Inspect **Webhooks** delivery errors and worker logs. Verify a public HTTPS target, return 2xx promptly, then replay/resend. |
+| Key/signature verification fails | Connector does not trust bundle/job signing `kid` | Check `TRUSTED_SIGNING_KEYS` against the cloud public key. Preserve existing signing keys during recovery. |
+| New software but old connection OpenAPI | Schema document is saved with an immutable bundle | Inspect version/hash. A new schema publication uses the current generator; server upgrades alone do not republish. |
+
+## Common API errors
+
+Errors use `{ "error": { "code": "...", "message": "...", "details": [] } }`; `details` is optional. See [Errors and usage](/docs/errors-and-usage).
+
+- `400 invalid_request`: correct the fields listed in `details`.
+- `401 unauthorized`: check that you used the right credential type for that API surface.
+- `403 insufficient_scope`: use a key with the exact required scope.
+- `404 not_found`: verify project ownership and identifiers; objects in other projects are intentionally hidden.
+- `502 connector_error` or `tally_error`: inspect connector/Tally response handling.
+- `503 tally_unavailable`: wait for the connector/Tally or use a synced read where appropriate.
+- `504 live_timeout`: reduce the requested range and check connector performance before retrying.
+
+## Operator checks
+
+Use `docker compose ps` and `docker compose logs --tail=100 api worker console`. For the demo, inspect `docker compose --profile demo logs --tail=100 connector`. `/healthz` tests the API process; `/readyz` tests database connectivity.
+
+Do not regenerate `.env` secrets or delete connector state to clear an error. Both are needed for existing installations, webhook secrets and write recovery. Large deletion holds require operator inspection; there is no release endpoint. Real Tally behavior still needs the repository's verification checklist before using customer live books.

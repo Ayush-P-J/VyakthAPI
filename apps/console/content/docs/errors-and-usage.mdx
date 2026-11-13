@@ -23,6 +23,11 @@ Every error has the same form. `details` appears only when there's more to say.
 | 409 | `connection_not_active` | The connection isn't active. Check its status. |
 | 409 | `idempotency_conflict` | Use a new key for a different request. |
 | 422 | `validation_failed` | Fix the entry, using the issues in `details`. |
+| 422 | `invalid_expression`, `invalid_field` | Correct the custom mapping against the existing dataset. |
+| 413 | `payload_too_large` | Reduce the request body; normal JSON API requests allow 1 MB. |
+| 502 | `connector_error`, `tally_error` | Inspect the connector response/logs. |
+| 503 | `tally_unavailable` | Bring the connector/Tally online, or use synced reads. |
+| 504 | `live_timeout` | Reduce the live range and check Tally performance. |
 
 ## Scopes
 
@@ -32,9 +37,11 @@ Every error has the same form. `details` appears only when there's more to say.
 | `write` | Posting and changing entries. Needs `read` as well in the console. |
 | `admin` | Connect links, webhooks, revoking connections and mapping fields. |
 
+Scopes are independent: `admin` does not imply `read` or `write`. The `raw` scope exists in internal types but there is no public raw-response endpoint. Console sessions, device secrets and connect tokens are separate credentials.
+
 ## Usage
 
-Each call counts towards your usage, by how much work it takes:
+Implemented metered operations count by how much work they take:
 
 | Kind | Units |
 |---|---|
@@ -48,4 +55,6 @@ See it in the console under **Usage**, or from the API:
 curl "$API/v1/usage?from=2026-11-01T00:00:00Z" -H "authorization: Bearer $KEY"
 ```
 
-See [Pricing](/pricing) for how usage is charged.
+Dataset synced reads cost 1 unit, live reads/discovery/live validation cost 5, and a newly accepted write job costs 10. Replaying an existing idempotent job does not add another write charge. Management/status/schema/webhook-log calls are not metered by the current implementation. These are usage units; no payments are collected and prices remain placeholders. See [Pricing](/pricing).
+
+`GET /v1/usage` returns `{data,activeConnections}` grouped by connection and kind. `from` is an inclusive timestamp and `to` is exclusive; omitted bounds use the database's current month start and now (plus one second). Console monthly reports use India time, so pass explicit timestamp bounds when comparing the two.

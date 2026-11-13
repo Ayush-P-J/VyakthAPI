@@ -1,1 +1,1 @@
-{ "title": "Docs", "pages": ["index", "quickstart", "connect-a-customer", "read-data", "write-to-tally", "webhooks", "errors-and-usage"] }
+{ "title": "Docs", "pages": ["index", "console-guide", "quickstart", "connect-a-customer", "read-data", "write-to-tally", "custom-fields", "webhooks", "openapi", "errors-and-usage", "troubleshooting"] }

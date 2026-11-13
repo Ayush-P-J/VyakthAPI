@@ -11,11 +11,32 @@ Connect a customer's Tally once, then use their ledgers, vouchers and stock thro
 
 ## How it fits together
 
-- **Connector.** A Windows program on your customer's PC. It talks to Tally there and keeps a secure channel open to us.
+- **Connector.** A Node.js command-line process on the PC running Tally, normally Windows. It talks to local Tally and keeps a secure channel open to the cloud. This repository does not include a packaged installer.
 - **Connect link.** You send this to your customer. They choose a company and decide what to share.
 - **Connection.** One Tally company your project can reach. Every data call names a connection.
 - **Synced and live reads.** Synced reads come from our copy and work when the customer's PC is off. Live reads ask Tally directly, so Tally must be open.
-- **Write jobs.** A write is queued and runs once on the connector. Your app hears the result from the job or a webhook.
+- **Write jobs.** A write is queued for the connector, with durable retry and duplicate checks. Your app reads the result from the job or a webhook. Actual duplicate protection still needs real Tally validation.
+
+## When and why to use it
+
+Use the platform to connect business software to customer accounting data without building a separate Tally XML client and sync loop in every application. Common uses are reporting, payment reconciliation, stock-data imports and receipt posting.
+
+For example, a collections app reads customer ledgers from synced data, queues a receipt when a payment arrives, then marks the operation as posted after `write_job.completed`. Synced reads support offline reporting; live reads answer current-value questions while the customer's Tally is open.
+
+The console manages projects, credentials, connections, write jobs, webhooks and usage. Use a project to separate integrations; a connection identifies one shared company in that project. A dataset is a collection such as `ledgers` or `sales`.
+
+## Choose your starting point
+
+| Task | Guide |
+|---|---|
+| Understand each management screen | [Using the console](/docs/console-guide) |
+| Make the first request | [Quickstart](/docs/quickstart) |
+| Connect a company | [Connect a customer](/docs/connect-a-customer) |
+| Add business-specific fields | [Custom fields](/docs/custom-fields) |
+| Import an API contract into Postman | [OpenAPI reference](/docs/openapi) |
+| Diagnose missing data or pending writes | [Troubleshooting](/docs/troubleshooting) |
+
+For Docker setup, connector environment variables, deployment and architecture, see `docs/README.md` in the repository. Current limitations include no billing collection, email verification, password reset, record deletion or job cancellation. Requested connection read/write access is shown during onboarding but is not enforced as connection-level write permission; API-key scopes are enforced.
 
 ## Base address
 

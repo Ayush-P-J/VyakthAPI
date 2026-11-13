@@ -15,7 +15,7 @@ curl -X POST $API/v1/connect-links \
 | Field | What it does |
 |---|---|
 | `label` | A name your customer sees, which also helps you tell links apart. |
-| `requestedScopes` | `read`, or `read` and `write`. Defaults to `read`. |
+| `requestedScopes` | Displayed requested access: `read`, or `read` and `write`. Defaults to `read`. Connection-level enforcement is not implemented; API-key scopes control API writes. |
 | `expiresInHours` | From 1 to 720. Defaults to 72. |
 | `redirectUrl` | Where to send the customer afterwards. We add `connection_id` to it. |
 | `requestedFields` | Custom fields to ask for at the same time. |
@@ -26,7 +26,11 @@ The response has the `url` to send. It's shown once and works once.
 
 1. Opens the link and starts the connector on the PC where Tally runs, using the link code on the page.
 2. Picks the company.
-3. Chooses what to share. For each sensitive field, they can choose **Share**, **Hide most** (only the last 4 characters) or **Keep private** (never leaves their PC).
+3. Chooses what to share. For each sensitive field, they can choose **Share**, **Hide most** (last four characters for strings longer than four; short strings become `****`, non-strings become `null`) or **Keep private** (omitted before upload).
+
+The current connector is a CLI; enrollment and `run` commands are described in the repository's `docs/operations.md`. The cloud address and trusted signing public key must be configured on that PC.
+
+The API response includes `id`, `url`, `token` and `expiresAt`. Keep the URL/token private. Customer page states are `awaiting_connector`, `awaiting_approval`, `connected` and `expired`. After approval the return URL receives a `connection_id` query parameter. The console describes a consumed link as `used`.
 
 They can stop sharing at any time from the connector. You can also revoke a connection with `DELETE /v1/connections/{id}`.
 

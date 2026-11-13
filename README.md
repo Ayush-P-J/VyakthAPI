@@ -1,6 +1,6 @@
 # Hexspare Tally API Platform
 
-Connect a customer's Tally once, then read and write its data, custom fields included, through REST and webhooks. Start with [the PRD](./Tally%20API%20Platform%20—%20PRD.md); decisions made while building are in [ADR-2](docs/adr/0002-build-decisions.md).
+Connect a customer's Tally once, then read and write its data, custom fields included, through REST and webhooks. Start with the [application documentation](docs/README.md) for what each part does, when to use it, console workflows and setup. The [OpenAPI reference](docs/openapi/README.md) includes importable public, console and connector contracts. Product intent is in [the PRD](./Tally%20API%20Platform%20—%20PRD.md); decisions made while building are in [ADR-2](docs/adr/0002-build-decisions.md).
 
 | Part | Where | Runs |
 |---|---|---|
@@ -70,6 +70,8 @@ pnpm install
 pnpm db:dev      # Postgres on localhost:55432
 pnpm test
 pnpm typecheck
+pnpm docs:generate  # regenerate public/device OpenAPI and console downloads
+pnpm docs:check     # check contract freshness, references and route coverage
 pnpm generate    # rebuilds the Standard pack from vyakth-connector/dist
 
 pnpm --filter @hexspare/console dev         # console on :3001, needs the API on :3000
@@ -81,7 +83,7 @@ The generated pack is committed, so the cloud build never needs the connector's 
 
 ## API
 
-Everything is under `/v1` with `Authorization: Bearer <key>`. Each connection has an OpenAPI document at `GET /v1/connections/{id}/schema`.
+The public API is under `/v1` with `Authorization: Bearer <key>`. Import the [complete public OpenAPI contract](docs/openapi/public.openapi.json) for all management and Standard pack dataset operations. `GET /v1/connections/{id}/schema` returns `{version,bundleHash,datasets,openapi}`; extract `openapi` for that connection's saved dataset contract. The console also serves the contracts at `/openapi/*.openapi.json`.
 
 | Method and path | Does | Scope |
 |---|---|---|

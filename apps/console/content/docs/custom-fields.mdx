@@ -1,0 +1,57 @@
+---
+title: Custom fields and schema versions
+description: Discover Tally UDFs, map them to API fields, and understand privacy and rollback.
+---
+
+Use custom-field mapping when your customer's TDL/UDF setup stores values outside the Standard pack, such as a membership reference or an external invoice ID. Mapping changes one connection's schema; it does not rebuild the connector.
+
+## Discover first
+
+Discovery needs an online connector and open Tally. Your key needs `read` scope:
+
+```sh
+curl "$API/v1/connections/$ID/discovery" -H "Authorization: Bearer $KEY"
+```
+
+The response is `{ "data": [...] }`. Discovered entries include `tallyType`, `udfName`, `label`, `index`, `type`, `path`, masked `samples` and `suggestedExpr`. The index may be `null`. Discovery samples up to 50 records per supported Tally object type (`Ledger`, `Group`, `StockItem`, `Voucher`) and keeps up to five sample values, so it can miss fields that occur only on other records. Treat an empty result as a sample result rather than proof that no UDFs exist.
+
+## Map the field
+
+Use a key with `admin` scope. The values below are illustrative; replace the expression and UDF metadata with verified discovery results from the customer's setup:
+
+```sh
+curl -X POST "$API/v1/connections/$ID/schema/fields" \
+  -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
+  -d '{"fields":[{"dataset":"ledgers","name":"memberReference","expr":"$MemberReference","type":"text","privacy":"masked"}]}'
+```
+
+| Field | Meaning |
+|---|---|
+| `dataset` | Existing dataset name, for example `ledgers`. |
+| `name` | API property name: a letter followed by up to 63 letters, digits or underscores. |
+| `expr` | Guarded TDL expression, 1–400 characters. Arbitrary executable TDL is not accepted. |
+| `type` | `text` (default), `number`, `amount`, `quantity`, `rate`, `date`, or `logical`. |
+| `privacy` | `public`, `masked`, or `excluded`. When omitted, the API suggests a class from the field name. |
+| `line` | Optional existing child-line name for mapping a nested field. |
+| `udfName`, `udfIndex`, `udfType` | Verified native UDF metadata, needed for writable UDFs; discovery's `index` becomes `udfIndex`. |
+
+Send 1–100 fields per mapping request. The response is `{ "version": 2, "hash": "..." }` (actual values vary). A `schema.published` event is emitted and the connector is nudged to sync. Read the new `/schema` before relying on a newly exposed field.
+
+## Privacy and writes
+
+The connector retains the customer's approved policy locally and applies the stricter class when the cloud requests something less restrictive. A field added after approval uses the customer's `customDefault`, which defaults to `masked`. Setting `privacy: public` in a mapping does not by itself authorize a previously unapproved value to be uploaded without masking.
+
+Masked strings longer than four characters retain only their last four characters. Strings of four characters or fewer become `****`. Masked non-string values, including normalized amount/quantity objects and booleans, become `null`. Excluded values are omitted.
+
+Custom-field writes use `customFields: { "memberReference": "value" }` in the supported ledger/voucher write input. A writable field must be mapped as a custom field with `privacy: public` and a known `udfName` plus `udfIndex`. Computed expressions and masked/excluded fields cannot be written. Real Tally UDF import behavior still requires validation on a test company.
+
+## Inspect or roll back
+
+```sh
+curl "$API/v1/connections/$ID/schema" -H "Authorization: Bearer $KEY"
+curl -X POST "$API/v1/connections/$ID/schema/rollback" \
+  -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
+  -d '{"version":1}'
+```
+
+Rollback pins a previously published version and returns `{version,hash}`. It does not create a new version, undo accounting writes, or restore historical record bodies. Previously published bundle documents remain immutable. There is no public schema-history listing endpoint; save the versions/hashes your integration uses.

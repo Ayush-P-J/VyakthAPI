@@ -3,7 +3,7 @@ title: Write to Tally
 description: Post entries safely, retry without duplicates, and read the result.
 ---
 
-You can write to `receipts`, `payments`, `contras`, `journals` and `ledgers`. Your key needs the **write** scope, and the customer must have allowed writes when they connected.
+You can write to `receipts`, `payments`, `contras`, `journals` and `ledgers`. Your key needs the **write** scope. Connection-level requested write consent is not enforced by the current runtime; a read-only invitation alone does not prevent a write-capable key from posting.
 
 <Callout type="warn" title="Not yet proven on a real TallyPrime">
   Don't post to a customer's live books until duplicate protection has been tested on a real Tally.
@@ -23,29 +23,57 @@ curl -X POST $API/v1/connections/$ID/receipts \
 
 The answer is `202` with a job. If Tally is closed, the job waits and runs when the connector is back.
 
-Vouchers can also carry `voucherNumber`, `reference`, `narration`, and `bills` on an entry. A connection's OpenAPI document, from `GET /v1/connections/{id}/schema`, lists every field.
+Vouchers can also carry `voucherType`, `voucherNumber`, `reference`, `narration`, `bills` on an entry, and mapped `customFields`. See the `VoucherInput` schema in the [OpenAPI reference](/docs/openapi) for exact constraints. The date must be a real `YYYY-MM-DD` date, there must be 2–500 entries, and amounts must be positive safe-integer paise. Debits and credits must balance. If bills are supplied, their amounts must add up to their entry's amount. Ledger names must match Tally without leading/trailing whitespace.
+
+## Choose a voucher dataset
+
+| Dataset | Use it for | Default voucher type |
+|---|---|---|
+| `receipts` | Money received, such as a customer payment | Receipt |
+| `payments` | Money paid out, such as a supplier payment | Payment |
+| `contras` | Transfers between cash/bank accounts | Contra |
+| `journals` | Non-cash accounting adjustments | Journal |
+
+Choose the debits/credits appropriate to your books; the API's structural validation does not make that business decision. The endpoint supplies the default voucher type unless `voucherType` is supplied.
+
+## Create a ledger
+
+Use this before posting vouchers that refer to a new account. The parent group must exist. The response is also a queued write job:
+
+```sh
+curl -X POST "$API/v1/connections/$ID/ledgers" \
+  -H "Authorization: Bearer $KEY" -H 'Idempotency-Key: ledger-customer-42' \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Customer 42","parent":"Sundry Debtors","openingBalancePaise":-10000}'
+```
+
+`name` and `parent` are required (1–200 characters). Opening balance is optional signed integer paise: negative for debit and positive for credit. The read schema may expose `openingBalance` as an amount object; the write input uses `openingBalancePaise` instead. `customFields` is optional; see [Custom fields](/docs/custom-fields).
 
 ## The Idempotency-Key header
 
-It's required, with at most 255 characters. Use an ID from your own system, such as an order number.
+It's required, with 1–255 characters. Use an ID from your own system, such as an order number. Keys are unique across the whole project, including different connections and datasets; include the operation/customer in your identifier when needed.
 
 - Sending the same key and body again returns the first job, with the `Idempotent-Replay: true` header.
 - Sending the same key with a different body returns `409 idempotency_conflict`.
+
+The bound request includes connection, dataset, action, record ID and parsed input. Retrying a failed terminal job with the same key returns that failed job; it does not create another attempt. A corrected business operation needs a new key. Keep the connector's SQLite state for durable recovery, and verify duplicate behavior on a real test company before using live books.
 
 ## Check before posting
 
 A dry run checks the entry against live Tally and posts nothing:
 
 ```sh
-curl -X POST "$API/v1/connections/$ID/receipts:validate" \
+curl -X POST "$API/v1/connections/$ID/ledgers:validate" \
   -H "authorization: Bearer $KEY" \
   -H "content-type: application/json" \
-  -d '{ ... }'
+  -d '{"name":"Customer 42","parent":"Sundry Debtors"}'
 ```
+
+Validation uses the same complete write-input schema and needs `write` scope, but no `Idempotency-Key`. It returns `{valid,issues}`. Invalid voucher structure may return `valid: false`; malformed JSON/body types can return 400 and live availability can return 502/503/504. A successful preflight does not guarantee that the later job will succeed if Tally changes in between.
 
 ## Change a record
 
-`PATCH /v1/connections/{id}/{dataset}/{recordId}` also needs an `Idempotency-Key`. Send the complete record, not only the fields that changed.
+`PATCH /v1/connections/{id}/{dataset}/{recordId}` also needs an `Idempotency-Key`. Send the complete write input, with all required fields and entries. Use `LedgerInput` or `VoucherInput`; do not send read-only IDs or an unmodified normalized read response. The record must already exist in the synced cache for PATCH acceptance.
 
 ## Read the result
 
@@ -58,7 +86,9 @@ curl $API/v1/write-jobs/$JOB -H "authorization: Bearer $KEY"
 | `queued` | Waiting for the connector. |
 | `sent` | With the connector. |
 | `completed` | Posted. `tallyId` holds Tally's ID. If `deduplicated` is `true`, it was already there and nothing new was posted. |
-| `rejected` | Tally refused it. `errors` says why in plain words. |
-| `failed` | It couldn't run. `errors` says why. |
+| `rejected` | Preflight, a safety check or connection revocation refused it. Read `errors`. |
+| `failed` | The connector/import reported a terminal failure. Read `errors`. |
 
 Deleting and cancelling aren't available.
+
+Jobs include `connectionId`, `dataset`, `action`, `idempotencyKey`, `tallyId`, import counts, `errors`, `payloadHash`, `createdAt` and `completedAt`. A completed job may appear in synced reads only after a subsequent sync. Subscribe to `write_job.completed` and `write_job.failed` or poll with a modest delay and backoff. Offline or ambiguous Tally operations can remain pending without a fixed expiry; inspect connector logs before creating another business operation.
