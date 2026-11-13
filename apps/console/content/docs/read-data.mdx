@@ -1,0 +1,57 @@
+---
+title: Read data
+description: Synced and live reads, paging, and custom fields.
+---
+
+Each connection has datasets such as `ledgers`. To see the datasets and fields a connection has, along with its OpenAPI document:
+
+```sh
+curl $API/v1/connections/$ID/schema -H "authorization: Bearer $KEY"
+```
+
+## Synced reads
+
+These come from our copy, so they work when the customer's PC is off.
+
+```sh
+curl "$API/v1/connections/$ID/ledgers?limit=100&updatedSince=2026-11-01T00:00:00Z" \
+  -H "authorization: Bearer $KEY"
+```
+
+| Query | What it does |
+|---|---|
+| `limit` | From 1 to 500. Defaults to 100. |
+| `cursor` | The `nextCursor` from the previous page. |
+| `updatedSince` | Only records changed after this time. |
+| `fields` | A comma-separated list of fields to return. |
+| `includeDeleted` | `true` also returns deleted records, marked `deleted: true`. |
+
+To read one record, use `GET /v1/connections/{id}/{dataset}/{recordId}`.
+
+## Live reads
+
+Add `live=true` to ask Tally now. Tally must be open on the customer's PC. For a date range, add `from` and `to` as `YYYY-MM-DD`.
+
+```sh
+curl "$API/v1/connections/$ID/receipts?live=true&from=2026-04-01&to=2026-04-30" \
+  -H "authorization: Bearer $KEY"
+```
+
+## How fresh is the data?
+
+Every response about a connection has these headers:
+
+| Header | Meaning |
+|---|---|
+| `X-Tally-Connection-Status` | `active`, `paused` or `revoked`, for example. |
+| `X-Tally-Connector-Online` | Whether the connector is reachable now. |
+| `X-Tally-Open` | Whether Tally is open, so live calls and writes can run now. |
+| `X-Tally-Last-Sync` | When data last arrived from Tally. |
+
+## Custom fields
+
+To find the custom fields in a customer's Tally, call `GET /v1/connections/{id}/discovery`. To add one to a dataset, call `POST /v1/connections/{id}/schema/fields`, which publishes a new schema version. To go back, call `POST /v1/connections/{id}/schema/rollback`.
+
+<Callout type="warn">
+  Custom-field discovery and writes haven't been tested on a real TallyPrime yet.
+</Callout>

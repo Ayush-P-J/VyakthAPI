@@ -1,0 +1,61 @@
+---
+title: Quickstart
+description: From a new account to your first ledger and your first write.
+---
+
+<Steps>
+<Step>
+
+### Create a key
+
+In the console, open **API keys** and choose **Create API key**. Choose **Full access** for this walkthrough, then copy the key. It's shown once.
+
+```sh
+export API=https://api.example.com
+export KEY=hx_live_...
+```
+
+</Step>
+<Step>
+
+### Connect a company
+
+Open **Connections**, choose **Connect a customer**, and send the link to your customer. See [Connect a customer](/docs/connect-a-customer) for what they'll see.
+
+Once they've finished, list your connections and keep the `id`:
+
+```sh
+curl $API/v1/connections -H "authorization: Bearer $KEY"
+```
+
+</Step>
+<Step>
+
+### Read ledgers
+
+```sh
+export ID=<connection id>
+curl "$API/v1/connections/$ID/ledgers?limit=10" -H "authorization: Bearer $KEY"
+```
+
+</Step>
+<Step>
+
+### Post a receipt
+
+Amounts are in paise, and debits must equal credits. The `idempotency-key` makes the request safe to retry.
+
+```sh
+curl -X POST $API/v1/connections/$ID/receipts \
+  -H "authorization: Bearer $KEY" \
+  -H "idempotency-key: order-1042" \
+  -H "content-type: application/json" \
+  -d '{"date":"2026-11-03","entries":[
+    {"ledger":"HDFC Bank","side":"Dr","amountPaise":25000000},
+    {"ledger":"A-1203 Customer","side":"Cr","amountPaise":25000000}]}'
+```
+
+You get `202` and a job. Read its result from `/v1/write-jobs/{id}`, or see it under **Write jobs** in the console.
+
+</Step>
+</Steps>

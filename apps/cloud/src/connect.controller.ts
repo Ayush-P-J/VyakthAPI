@@ -1,8 +1,6 @@
-/** The hosted connect page. The link token in the URL is the customer's only credential. */
+/** What the connect page, now in the console, calls. The link token in the URL is the customer's only credential. */
 import { Body, Controller, Get, HttpCode, Inject, Param, Post, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { z } from "zod";
 import { PRIVACY, standardPack, suggestPrivacy } from "@hexspare/tally-engine";
 import { CONFIG, type Config } from "./config.ts";
@@ -41,10 +39,11 @@ export class ConnectController {
   }
 
   @Get("connect/:token")
-  page(@Res() res: Response) {
+  /** Links sent before the page moved still work. The token is checked by the page it lands on. */
+  page(@Param("token") token: string, @Res() res: Response) {
     res.setHeader("Referrer-Policy", "no-referrer");
     res.setHeader("Cache-Control", "no-store");
-    res.type("html").send(readFileSync(join(this.config.publicDir, "connect.html"), "utf8"));
+    res.redirect(302, `${this.config.consoleUrl}/connect/${encodeURIComponent(token)}`);
   }
 
   @Get("connect/:token/state")

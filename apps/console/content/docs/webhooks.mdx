@@ -1,0 +1,68 @@
+---
+title: Webhooks
+description: Get events on your server, check they're from us, and recover from downtime.
+---
+
+Create a webhook in the console, or with an **admin** key. The `secret` is shown once.
+
+```sh
+curl -X POST $API/v1/webhooks \
+  -H "authorization: Bearer $KEY" \
+  -H "content-type: application/json" \
+  -d '{"url":"https://your.app/hooks/tally","events":["write_job.completed","write_job.failed"]}'
+```
+
+The address must use HTTPS, and it can't be a private network address.
+
+## Events
+
+| Event | Sent when |
+|---|---|
+| `write_job.completed` | A write job posted to Tally. |
+| `write_job.failed` | A write job failed. |
+| `connection.status_changed` | A company connected or was revoked. |
+| `record.created` | A record was created in Tally. |
+| `record.updated` | A record was changed in Tally. |
+| `record.deleted` | A record was deleted in Tally. |
+| `schema.published` | A new schema version was published. |
+
+Each delivery is a JSON body of this form:
+
+```json
+{ "id": "…", "event": "write_job.completed", "createdAt": "2026-11-05T10:30:00.000Z", "data": { } }
+```
+
+## Check the signature
+
+Each delivery has an `X-Hexspare-Signature` header of the form `t=<unix time>,v1=<signature>`. The signature is the HMAC-SHA256, in hex, of the time, a dot and the raw body.
+
+```ts
+import { createHmac, timingSafeEqual } from "node:crypto";
+
+export function isFromHexspare(header: string, rawBody: string, secret: string) {
+  const parts = new URLSearchParams(header.replaceAll(",", "&"));
+  const t = parts.get("t") ?? "";
+  const expected = createHmac("sha256", secret).update(`${t}.${rawBody}`).digest("hex");
+  const given = Buffer.from(parts.get("v1") ?? "");
+  const fresh = Math.abs(Date.now() / 1000 - Number(t)) < 300;
+  return fresh && given.length === expected.length && timingSafeEqual(given, Buffer.from(expected));
+}
+```
+
+## Retries and duplicates
+
+Answer with any 2xx status within 10 seconds. We don't follow redirects. A failed delivery is retried up to 8 times, waiting longer each time.
+
+An event can reach you more than once. Use the `X-Hexspare-Event-Id` header to ignore repeats.
+
+## If your server was down
+
+Read what you missed from a cursor, or ask for it to be sent again:
+
+```sh
+curl "$API/v1/webhooks/$HOOK/events?cursor=$CURSOR" -H "authorization: Bearer $KEY"
+curl -X POST $API/v1/webhooks/$HOOK/replay -H "authorization: Bearer $KEY" \
+  -H "content-type: application/json" -d '{"cursor":"'$CURSOR'"}'
+```
+
+The console's **Webhooks** page shows the latest 50 deliveries for each webhook, why any failed, and a button to resend one.

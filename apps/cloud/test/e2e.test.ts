@@ -107,7 +107,7 @@ beforeAll(async () => {
   config = {
     databaseUrl: url.toString(), publicUrl: "http://localhost", consoleUrl: "http://localhost:3001", allowSignup: true, port: 0,
     signing: { kid: KID, privateKeyPem: signing.privateKeyPem }, secretsKey: randomBytes(32), allowPrivateWebhooks: true,
-    migrationsDir: join(process.cwd(), "../../db/migrations"), publicDir: join(process.cwd(), "public"), liveTimeoutMs: 8000,
+    migrationsDir: join(process.cwd(), "../../db/migrations"), liveTimeoutMs: 8000,
   };
   await migrate(config.databaseUrl, config.migrationsDir);
   app = await createApp(config);
@@ -161,11 +161,12 @@ describe("connect flow and synced reads", () => {
     rt2.close();
   });
 
-  it("the page reads as connected, and serves HTML", async () => {
+  it("an unknown link is refused, and an old link address forwards to the console", async () => {
     expect((await call(null, "GET", "/connect/not-a-token/state")).status).toBe(404);
-    const page = await fetch(`${base}/connect/anything`);
+    const page = await fetch(`${base}/connect/any%20thing`, { redirect: "manual" });
+    expect(page.status).toBe(302);
+    expect(page.headers.get("location")).toBe("http://localhost:3001/connect/any%20thing");
     expect(page.headers.get("referrer-policy")).toBe("no-referrer");
-    expect(await page.text()).toContain("Connect your Tally");
   });
 
   it("reads a ledger with its custom field, without any TDL from the developer (the PRD's goal)", async () => {

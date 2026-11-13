@@ -1,0 +1,39 @@
+---
+title: Connect a customer
+description: Create a connect link and see what your customer does with it.
+---
+
+A connect link lets one customer connect one Tally company to your project. Create it in the console under **Connections**, or from the API with an **admin** key:
+
+```sh
+curl -X POST $API/v1/connect-links \
+  -H "authorization: Bearer $KEY" \
+  -H "content-type: application/json" \
+  -d '{"label":"Acme Industries","requestedScopes":["read","write"],"expiresInHours":72,"redirectUrl":"https://your.app/connected"}'
+```
+
+| Field | What it does |
+|---|---|
+| `label` | A name your customer sees, which also helps you tell links apart. |
+| `requestedScopes` | `read`, or `read` and `write`. Defaults to `read`. |
+| `expiresInHours` | From 1 to 720. Defaults to 72. |
+| `redirectUrl` | Where to send the customer afterwards. We add `connection_id` to it. |
+| `requestedFields` | Custom fields to ask for at the same time. |
+
+The response has the `url` to send. It's shown once and works once.
+
+## What your customer does
+
+1. Opens the link and starts the connector on the PC where Tally runs, using the link code on the page.
+2. Picks the company.
+3. Chooses what to share. For each sensitive field, they can choose **Share**, **Hide most** (only the last 4 characters) or **Keep private** (never leaves their PC).
+
+They can stop sharing at any time from the connector. You can also revoke a connection with `DELETE /v1/connections/{id}`.
+
+## Check a connection
+
+```sh
+curl $API/v1/connections/$ID -H "authorization: Bearer $KEY"
+```
+
+The answer includes `status`, `connectorOnline` and `tallyOpen`.

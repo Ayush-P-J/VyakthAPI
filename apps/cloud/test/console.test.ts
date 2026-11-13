@@ -8,6 +8,8 @@ import { generateSigningKey } from "@hexspare/tally-engine";
 import { createApp } from "../src/app.ts";
 import type { Config } from "../src/config.ts";
 import { Db, migrate } from "../src/db.ts";
+import { Webhooks } from "../src/webhooks.ts";
+import { createServer, type Server } from "node:http";
 import { Throttle, hashPassword, verifyPassword } from "../src/console-auth.ts";
 
 const ADMIN_URL = process.env.TEST_DATABASE_URL ?? "postgres://hexspare:hexspare_dev@127.0.0.1:55432/tally_platform";
@@ -16,6 +18,7 @@ const CONSOLE = "http://localhost:3001";
 let app: Awaited<ReturnType<typeof createApp>>;
 let base = "";
 let db: Db;
+let hooks: Webhooks;
 
 const email = () => `dev-${randomBytes(4).toString("hex")}@example.com`;
 const PASSWORD = "correct horse battery";
@@ -48,13 +51,14 @@ beforeAll(async () => {
   const config: Config = {
     databaseUrl: url.toString(), publicUrl: "http://localhost", consoleUrl: CONSOLE, allowSignup: true, port: 0,
     signing: { kid: "k", privateKeyPem: key.privateKeyPem }, secretsKey: randomBytes(32), allowPrivateWebhooks: true,
-    migrationsDir: join(process.cwd(), "../../db/migrations"), publicDir: join(process.cwd(), "public"), liveTimeoutMs: 1000,
+    migrationsDir: join(process.cwd(), "../../db/migrations"), liveTimeoutMs: 1000,
   };
   await migrate(config.databaseUrl, config.migrationsDir);
   app = await createApp(config);
   await app.listen(0, "127.0.0.1");
   base = (await app.getUrl()).replace("[::1]", "127.0.0.1");
   db = new Db(config);
+  hooks = new Webhooks(db, config);
 });
 afterAll(async () => {
   await app?.close();
@@ -412,6 +416,266 @@ describe("connect links", () => {
   });
 });
 
+describe("write job log", () => {
+  const setup = async () => {
+    const r = await signup();
+    const p = r.body.projects[0].id as string, t = r.body.tenant.id as string;
+    const conn = (await db.one("INSERT INTO connection (tenant_id, project_id, status, company_name) VALUES ($1, $2, 'active', 'Acme Ltd') RETURNING id", [t, p])).id as string;
+    return { cookie: cookieOf(r.setCookie), p, t, conn };
+  };
+  const job = async (t: string, p: string, conn: string, key: string, extra: { status?: string; error?: string } = {}) => (await db.one(
+    `INSERT INTO write_job (tenant_id, project_id, connection_id, dataset_name, action, idempotency_key, request_body, status, error_message)
+     VALUES ($1, $2, $3, 'voucher_receipt', 'create', $4, '{"narration":"secret-body"}', $5, $6) RETURNING id`, [t, p, conn, key, extra.status ?? "queued", extra.error ?? null])).id as string;
+
+  it("lists newest first without what the app sent, and shows it only for one job", async () => {
+    const { cookie, p, t, conn } = await setup();
+    await job(t, p, conn, "first");
+    const second = await job(t, p, conn, "second", { status: "failed", error: "Ledger not found" });
+    const list = await send("GET", `/projects/${p}/jobs`, { cookie });
+    expect(list.body.data.map((j: any) => j.idempotencyKey)).toEqual(["second", "first"]);
+    expect(list.body.data[0]).toMatchObject({ company: "Acme Ltd", status: "failed", errors: [{ message: "Ledger not found" }] });
+    expect(JSON.stringify(list.body)).not.toContain("secret-body");
+    expect(JSON.stringify(list.body)).not.toContain("envelope");
+    const one = await send("GET", `/projects/${p}/jobs/${second}`, { cookie });
+    expect(one.body.requestBody).toEqual({ narration: "secret-body" });
+    expect(one.body).not.toHaveProperty("envelope");
+  });
+  it("filters by status and connection, and pages without repeats or gaps", async () => {
+    const { cookie, p, t, conn } = await setup();
+    const other = (await db.one("INSERT INTO connection (tenant_id, project_id, status) VALUES ($1, $2, 'active') RETURNING id", [t, p])).id;
+    await job(t, p, conn, "failed-one", { status: "failed" });
+    await job(t, p, other, "other-company");
+    for (let i = 0; i < 55; i++) await job(t, p, conn, `k${i}`);
+    expect((await send("GET", `/projects/${p}/jobs?status=failed`, { cookie })).body.data.map((j: any) => j.idempotencyKey)).toEqual(["failed-one"]);
+    expect((await send("GET", `/projects/${p}/jobs?connectionId=${other}`, { cookie })).body.data.map((j: any) => j.idempotencyKey)).toEqual(["other-company"]);
+    const a = (await send("GET", `/projects/${p}/jobs`, { cookie })).body;
+    expect(a.data).toHaveLength(50);
+    const b = (await send("GET", `/projects/${p}/jobs?cursor=${a.nextCursor}`, { cookie })).body;
+    expect(b.data).toHaveLength(7);
+    expect(b.nextCursor).toBeNull();
+    expect(new Set([...a.data, ...b.data].map((j: any) => j.id)).size).toBe(57);
+  });
+  it.each(["status=nope", "connectionId=x", "cursor=abc", "cursor=1;drop", "extra=1"])("refuses the filter %s", async (query) => {
+    const { cookie, p } = await setup();
+    expect((await send("GET", `/projects/${p}/jobs?${query}`, { cookie })).status).toBe(400);
+  });
+  it("another account cannot list or read jobs, even through its own project", async () => {
+    const a = await setup();
+    const b = await setup();
+    const id = await job(a.t, a.p, a.conn, "k");
+    expect((await send("GET", `/projects/${a.p}/jobs`, { cookie: b.cookie })).status).toBe(404);
+    expect((await send("GET", `/projects/${a.p}/jobs/${id}`, { cookie: b.cookie })).status).toBe(404);
+    expect((await send("GET", `/projects/${b.p}/jobs/${id}`, { cookie: b.cookie })).status).toBe(404);
+    expect((await send("GET", `/projects/${b.p}/jobs?connectionId=${a.conn}`, { cookie: b.cookie })).body.data).toEqual([]);
+    expect((await send("GET", `/projects/${a.p}/jobs`)).status).toBe(401);
+  });
+});
+
+describe("webhooks", () => {
+  const setup = async () => {
+    const r = await signup();
+    return { cookie: cookieOf(r.setCookie), p: r.body.projects[0].id as string, t: r.body.tenant.id as string };
+  };
+  const EVENTS = ["write_job.failed", "connection.status_changed"];
+  let server: Server;
+  let url = "";
+  let answer = 200;
+  const received: { id: string; signature: string }[] = [];
+  beforeAll(async () => {
+    server = createServer((req, res) => {
+      received.push({ id: String(req.headers["x-hexspare-event-id"]), signature: String(req.headers["x-hexspare-signature"]) });
+      req.resume();
+      res.statusCode = answer;
+      res.end();
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    url = `http://127.0.0.1:${(server.address() as { port: number }).port}/hook`;
+  });
+  afterAll(() => { server.close(); });
+  const makeHook = async (cookie: string, p: string) => (await send("POST", `/projects/${p}/webhooks`, { cookie, body: { url, events: EVENTS } })).body;
+  /** A real event, through the same path a revoke takes. */
+  const fire = async (cookie: string, p: string, t: string) => {
+    const conn = (await db.one("INSERT INTO connection (tenant_id, project_id, status) VALUES ($1, $2, 'active') RETURNING id", [t, p])).id;
+    expect((await send("DELETE", `/projects/${p}/connections/${conn}`, { cookie })).status).toBe(204);
+  };
+  const deliveries = async (cookie: string, p: string, id: string) => (await send("GET", `/projects/${p}/webhooks/${id}/deliveries`, { cookie })).body.data;
+  const drain = async () => { while (await hooks.deliverDue(500) > 0) { /* until nothing is due */ } };
+
+  it("returns the secret once, stores it sealed, and signs deliveries with it", async () => {
+    const { cookie, p, t } = await setup();
+    const made = await makeHook(cookie, p);
+    expect(made.secret).toMatch(/^whsec_/);
+    const list = await send("GET", `/projects/${p}/webhooks`, { cookie });
+    expect(list.body.data[0]).toMatchObject({ url, events: EVENTS, isActive: true, pending: 0, failed: 0 });
+    expect(JSON.stringify(list.body)).not.toContain("whsec_");
+    expect(JSON.stringify((await db.one("SELECT secret FROM webhook_endpoint WHERE id = $1", [made.id])))).not.toContain(made.secret);
+    answer = 200;
+    await fire(cookie, p, t);
+    await drain();
+    const [d] = await deliveries(cookie, p, made.id);
+    expect(d).toMatchObject({ status: "delivered", event: "connection.status_changed", attempts: 1, lastError: null });
+    const got = received.find((x) => x.id === d.payload.id)!;
+    const { signPayload } = await import("../src/webhooks.ts");
+    const ts = Number(/t=(\d+)/.exec(got.signature)![1]);
+    expect(got.signature).toBe(signPayload(made.secret, ts, JSON.stringify(d.payload)));
+  });
+  it("shows why a delivery failed, and a resend delivers the same event id", async () => {
+    const { cookie, p, t } = await setup();
+    const made = await makeHook(cookie, p);
+    answer = 500;
+    await fire(cookie, p, t);
+    await hooks.deliverDue(500);
+    const [failed] = await deliveries(cookie, p, made.id);
+    expect(failed).toMatchObject({ status: "retrying", attempts: 1, lastError: "Your server answered HTTP 500." });
+    expect((await send("GET", `/projects/${p}/webhooks`, { cookie })).body.data[0].pending).toBe(1);
+    answer = 200;
+    expect((await send("POST", `/projects/${p}/webhooks/${made.id}/deliveries/${failed.id}/resend`, { cookie })).status).toBe(204);
+    await drain();
+    const [done] = await deliveries(cookie, p, made.id);
+    expect(done).toMatchObject({ status: "delivered", lastError: null, id: failed.id });
+    expect(done.payload.id).toBe(failed.payload.id);
+  });
+  it("reports an unreachable server, and gives up after the last attempt", async () => {
+    const { cookie, p, t } = await setup();
+    const dead = (await send("POST", `/projects/${p}/webhooks`, { cookie, body: { url: "http://127.0.0.1:9/h", events: EVENTS } })).body;
+    await fire(cookie, p, t);
+    await hooks.deliverDue(500);
+    expect((await deliveries(cookie, p, dead.id))[0].lastError).toBe("Couldn't connect to your server (ECONNREFUSED).");
+    await db.query("UPDATE webhook_delivery SET attempts = 7, next_retry_at = now() WHERE endpoint_id = $1", [dead.id]);
+    await hooks.deliverDue(500);
+    expect((await deliveries(cookie, p, dead.id))[0]).toMatchObject({ status: "failed", attempts: 8, nextRetryAt: null });
+    expect((await send("GET", `/projects/${p}/webhooks`, { cookie })).body.data[0].failed).toBe(1);
+  });
+  it("pausing holds waiting deliveries and records no new events; resuming sends what waited", async () => {
+    const { cookie, p, t } = await setup();
+    const made = await makeHook(cookie, p);
+    answer = 200;
+    await fire(cookie, p, t);
+    expect((await send("PATCH", `/projects/${p}/webhooks/${made.id}`, { cookie, body: { isActive: false } })).status).toBe(204);
+    await drain();
+    const [held] = await deliveries(cookie, p, made.id);
+    expect(held.status).toBe("pending");
+    await fire(cookie, p, t);
+    expect(await deliveries(cookie, p, made.id)).toHaveLength(1);
+    const blocked = await send("POST", `/projects/${p}/webhooks/${made.id}/deliveries/${held.id}/resend`, { cookie });
+    expect(blocked.status).toBe(409);
+    expect(blocked.body.error.code).toBe("webhook_paused");
+    expect((await send("PATCH", `/projects/${p}/webhooks/${made.id}`, { cookie, body: { isActive: true } })).status).toBe(204);
+    await drain();
+    expect((await deliveries(cookie, p, made.id))[0].status).toBe("delivered");
+  });
+  it("deleting removes the webhook and its waiting deliveries", async () => {
+    const { cookie, p, t } = await setup();
+    const made = await makeHook(cookie, p);
+    answer = 500;
+    await fire(cookie, p, t);
+    expect((await send("DELETE", `/projects/${p}/webhooks/${made.id}`, { cookie })).status).toBe(204);
+    expect((await send("GET", `/projects/${p}/webhooks`, { cookie })).body.data).toEqual([]);
+    expect((await db.one("SELECT count(*)::int AS n FROM webhook_delivery WHERE endpoint_id = $1", [made.id])).n).toBe(0);
+    answer = 200;
+  });
+  it.each([
+    ["no events", { url: "https://example.com/h", events: [] }],
+    ["an unknown event", { url: "https://example.com/h", events: ["nope"] }],
+    ["a script address", { url: "javascript:alert(1)", events: EVENTS }],
+    ["an unknown field", { url: "https://example.com/h", events: EVENTS, secret: "mine" }],
+  ])("refuses %s", async (_n, body) => {
+    const { cookie, p } = await setup();
+    expect((await send("POST", `/projects/${p}/webhooks`, { cookie, body })).status).toBe(400);
+  });
+  it("another account cannot reach any webhook route", async () => {
+    const a = await setup();
+    const b = await setup();
+    const made = await makeHook(a.cookie, a.p);
+    answer = 200;
+    await fire(a.cookie, a.p, a.t);
+    const [d] = await deliveries(a.cookie, a.p, made.id);
+    const cookie = b.cookie;
+    for (const project of [a.p, b.p]) {
+      expect((await send("PATCH", `/projects/${project}/webhooks/${made.id}`, { cookie, body: { isActive: false } })).status).toBe(404);
+      expect((await send("DELETE", `/projects/${project}/webhooks/${made.id}`, { cookie })).status).toBe(404);
+      expect((await send("GET", `/projects/${project}/webhooks/${made.id}/deliveries`, { cookie })).status).toBe(404);
+      expect((await send("POST", `/projects/${project}/webhooks/${made.id}/deliveries/${d.id}/resend`, { cookie })).status).toBe(404);
+    }
+    expect((await send("GET", `/projects/${a.p}/webhooks`, { cookie })).status).toBe(404);
+    expect((await send("POST", `/projects/${a.p}/webhooks`, { cookie, body: { url, events: EVENTS } })).status).toBe(404);
+    expect((await send("GET", `/projects/${a.p}/webhooks`, { cookie: a.cookie })).body.data).toHaveLength(1);
+  });
+  it("a delivery cannot be resent through a different webhook", async () => {
+    const { cookie, p, t } = await setup();
+    const one = await makeHook(cookie, p);
+    const two = await makeHook(cookie, p);
+    answer = 200;
+    await fire(cookie, p, t);
+    const [d] = await deliveries(cookie, p, one.id);
+    await db.query("DELETE FROM webhook_delivery WHERE endpoint_id = $1", [two.id]);
+    expect((await send("POST", `/projects/${p}/webhooks/${two.id}/deliveries/${d.id}/resend`, { cookie })).status).toBe(404);
+  });
+  it("refuses changes from another site", async () => {
+    const { cookie, p, t } = await setup();
+    const made = await makeHook(cookie, p);
+    await fire(cookie, p, t);
+    const [d] = await deliveries(cookie, p, made.id);
+    const origin = "https://evil.example";
+    expect((await send("POST", `/projects/${p}/webhooks`, { cookie, origin, body: { url, events: EVENTS } })).status).toBe(403);
+    expect((await send("PATCH", `/projects/${p}/webhooks/${made.id}`, { cookie, origin, body: { isActive: false } })).status).toBe(403);
+    expect((await send("DELETE", `/projects/${p}/webhooks/${made.id}`, { cookie, origin })).status).toBe(403);
+    expect((await send("POST", `/projects/${p}/webhooks/${made.id}/deliveries/${d.id}/resend`, { cookie, origin })).status).toBe(403);
+  });
+  it("in production, refuses plain http and private addresses", async () => {
+    const { p, t } = await setup();
+    const strict = new Webhooks(db, { allowPrivateWebhooks: false, secretsKey: randomBytes(32) } as Config);
+    await expect(strict.createEndpoint(t, p, { url: "http://example.com/h", events: EVENTS })).rejects.toMatchObject({ code: "webhook_must_be_https" });
+    await expect(strict.createEndpoint(t, p, { url: "https://10.0.0.1/h", events: EVENTS })).rejects.toMatchObject({ code: "webhook_private_address" });
+    await expect(strict.createEndpoint(t, p, { url: "https://[::1]/h", events: EVENTS })).rejects.toMatchObject({ code: "webhook_private_address" });
+  });
+});
+
+describe("usage", () => {
+  const event = (t: string, p: string, c: string | null, kind: string, weight: number, at: string) =>
+    db.query("INSERT INTO usage_event (tenant_id, project_id, connection_id, kind, weight, occurred_at) VALUES ($1, $2, $3, $4, $5, $6)", [t, p, c, kind, weight, at]);
+  it("adds up one month per company, and months follow India time", async () => {
+    const r = await signup();
+    const cookie = cookieOf(r.setCookie);
+    const p = r.body.projects[0].id, t = r.body.tenant.id;
+    const conn = (await db.one("INSERT INTO connection (tenant_id, project_id, status, company_name) VALUES ($1, $2, 'active', 'Acme Ltd') RETURNING id", [t, p])).id;
+    await event(t, p, conn, "synced_read", 1, "2026-03-10T00:00:00Z");
+    await event(t, p, conn, "synced_read", 1, "2026-03-11T00:00:00Z");
+    await event(t, p, conn, "write", 10, "2026-03-12T00:00:00Z");
+    await event(t, p, null, "live_read", 5, "2026-03-13T00:00:00Z");
+    await event(t, p, conn, "write", 10, "2026-03-31T18:29:00Z"); // 23:59 on 31 March in India
+    await event(t, p, conn, "write", 10, "2026-03-31T18:31:00Z"); // 00:01 on 1 April in India
+    const march = (await send("GET", `/projects/${p}/usage?month=2026-03`, { cookie })).body;
+    expect(march.month).toBe("2026-03");
+    expect(march.totals).toEqual({ calls: { synced_read: 2, live_read: 1, write: 2 }, units: 27 });
+    expect(march.connections).toEqual([
+      { connectionId: conn, company: "Acme Ltd", calls: { synced_read: 2, live_read: 0, write: 2 }, units: 22 },
+      { connectionId: null, company: null, calls: { synced_read: 0, live_read: 1, write: 0 }, units: 5 },
+    ]);
+    expect((await send("GET", `/projects/${p}/usage?month=2026-04`, { cookie })).body.totals.units).toBe(10);
+  });
+  it("answers an empty month with zeros, and defaults to this month", async () => {
+    const r = await signup();
+    const cookie = cookieOf(r.setCookie);
+    const p = r.body.projects[0].id;
+    const empty = (await send("GET", `/projects/${p}/usage?month=2020-01`, { cookie })).body;
+    expect(empty).toEqual({ month: "2020-01", totals: { calls: { synced_read: 0, live_read: 0, write: 0 }, units: 0 }, connections: [] });
+    await event(r.body.tenant.id, p, null, "write", 10, new Date().toISOString());
+    const now = (await send("GET", `/projects/${p}/usage`, { cookie })).body;
+    expect(now.totals.units).toBe(10);
+    expect(now.month).toBe(new Date(Date.now() + 5.5 * 3_600_000).toISOString().slice(0, 7));
+  });
+  it("refuses a bad month, and another account", async () => {
+    const a = await signup();
+    const b = await signup();
+    const p = a.body.projects[0].id;
+    await event(a.body.tenant.id, p, null, "write", 10, "2026-03-10T00:00:00Z");
+    for (const m of ["2026-13", "2026", "x", "2026-3"]) expect((await send("GET", `/projects/${p}/usage?month=${m}`, { cookie: cookieOf(a.setCookie) })).status).toBe(400);
+    expect((await send("GET", `/projects/${p}/usage`, { cookie: cookieOf(b.setCookie) })).status).toBe(404);
+    expect((await send("GET", `/projects/${b.body.projects[0].id}/usage?month=2026-03`, { cookie: cookieOf(b.setCookie) })).body.totals.units).toBe(0);
+  });
+});
+
 describe("the OpenAPI file the console's types are generated from", () => {
   const doc = JSON.parse(readFileSync(join(process.cwd(), "../console/openapi/console.openapi.json"), "utf8"));
   const check = (value: any, schema: any, at: string) => {
@@ -440,5 +704,17 @@ describe("the OpenAPI file the console's types are generated from", () => {
     check((await send("GET", `/projects/${p}/connect-links`, { cookie })).body, items("ConnectLink"), "links");
     await db.query("INSERT INTO connection (tenant_id, project_id, status) VALUES ($1, $2, 'active')", [r.body.tenant.id, p]);
     check((await send("GET", `/projects/${p}/connections`, { cookie })).body, items("Connection"), "connections");
+    const conn = (await db.one("SELECT id FROM connection WHERE project_id = $1", [p])).id;
+    const job = (await db.one("INSERT INTO write_job (tenant_id, project_id, connection_id, dataset_name, action, idempotency_key, request_body, status, error_message) VALUES ($1, $2, $3, 'voucher_receipt', 'create', 'k', '{}', 'failed', 'x') RETURNING id", [r.body.tenant.id, p, conn])).id;
+    const jobItem = { ...schemas.WriteJob, properties: { ...schemas.WriteJob.properties, errors: { type: "array" } } };
+    check((await send("GET", `/projects/${p}/jobs`, { cookie })).body, { properties: { data: { type: "array", items: jobItem }, nextCursor: {} } }, "jobs");
+    check((await send("GET", `/projects/${p}/jobs/${job}`, { cookie })).body, { ...schemas.WriteJobDetail, properties: { ...schemas.WriteJobDetail.properties, errors: { type: "array" } } }, "job");
+    const hook = (await send("POST", `/projects/${p}/webhooks`, { cookie, body: { url: "http://127.0.0.1:9/h", events: ["connection.status_changed"] } })).body;
+    check(hook, schemas.CreatedWebhook, "created webhook");
+    check((await send("GET", `/projects/${p}/webhooks`, { cookie })).body, items("Webhook"), "webhooks");
+    await send("DELETE", `/projects/${p}/connections/${conn}`, { cookie });
+    check((await send("GET", `/projects/${p}/webhooks/${hook.id}/deliveries`, { cookie })).body, { properties: { data: { type: "array", items: { ...schemas.WebhookDelivery, properties: { ...schemas.WebhookDelivery.properties, payload: {} } } } } }, "deliveries");
+    const usage = { ...schemas.Usage, properties: { month: {}, totals: {}, connections: {} } };
+    check((await send("GET", `/projects/${p}/usage`, { cookie })).body, usage, "usage");
   });
 });

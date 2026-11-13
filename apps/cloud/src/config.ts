@@ -10,7 +10,6 @@ export interface Config {
   secretsKey: Buffer;
   allowPrivateWebhooks: boolean;
   migrationsDir: string;
-  publicDir: string;
   liveTimeoutMs: number;
 }
 
@@ -33,7 +32,6 @@ export function loadConfig(): Config {
     secretsKey,
     allowPrivateWebhooks: process.env.ALLOW_PRIVATE_WEBHOOKS === "true",
     migrationsDir: process.env.MIGRATIONS_DIR ?? new URL("../../../db/migrations", `file://${process.cwd()}/apps/cloud/src/`).pathname,
-    publicDir: process.env.PUBLIC_DIR ?? `${process.cwd()}/public`,
     liveTimeoutMs: Number(process.env.LIVE_TIMEOUT_MS ?? 25_000),
   };
 }

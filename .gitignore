@@ -9,3 +9,4 @@ next-env.d.ts
 # Exception: the compiled connector is the only copy we have (no TypeScript source),
 # and `pnpm generate` reads it.
 !vyakth-connector/dist/
+.source/

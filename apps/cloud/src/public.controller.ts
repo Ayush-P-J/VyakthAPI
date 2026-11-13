@@ -5,11 +5,10 @@ import type { Request, Response } from "express";
 import { z } from "zod";
 import { FIELD_TYPES, PRIVACY, suggestPrivacy } from "@hexspare/tally-engine";
 import { Auth, parseArray } from "./auth.ts";
-import { CONFIG, type Config } from "./config.ts";
 import { Db } from "./db.ts";
 import { ApiError, notFound } from "./errors.ts";
 import { Platform, isUuid } from "./platform.ts";
-import { randomToken, seal } from "./secrets.ts";
+import { Webhooks } from "./webhooks.ts";
 
 const FieldInput = z.object({
   dataset: z.string(), name: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_]{0,63}$/), expr: z.string().min(1).max(400), type: z.enum(FIELD_TYPES).default("text"),
@@ -18,7 +17,7 @@ const FieldInput = z.object({
 const httpUrl = z.string().url().max(2000).refine((u) => /^https?:\/\//.test(u), "Must be an http(s) URL");
 
 export const ConnectLink = z.object({ label: z.string().max(200).optional(), redirectUrl: httpUrl.optional(), requestedScopes: z.array(z.enum(["read", "write"])).default(["read"]), requestedFields: z.array(FieldInput).max(200).default([]), expiresInHours: z.number().int().min(1).max(24 * 30).default(72) }).strict();
-const Webhook = z.object({ url: httpUrl, events: z.array(z.enum(["record.created", "record.updated", "record.deleted", "write_job.completed", "write_job.failed", "connection.status_changed", "schema.published"])).min(1) }).strict();
+export const Webhook = z.object({ url: httpUrl, events: z.array(z.enum(["record.created", "record.updated", "record.deleted", "write_job.completed", "write_job.failed", "connection.status_changed", "schema.published"])).min(1) }).strict();
 const ListQuery = z.object({
   cursor: z.string().max(500).optional(), limit: z.coerce.number().int().min(1).max(500).default(100), updatedSince: z.string().datetime({ offset: true }).optional(),
   fields: z.string().max(2000).optional(), live: z.enum(["true", "false"]).optional(), includeDeleted: z.enum(["true", "false"]).optional(),
@@ -28,7 +27,7 @@ const ymd = (s?: string) => (s ? Number(s.replaceAll("-", "")) : undefined);
 
 @Controller("v1")
 export class PublicController {
-  constructor(@Inject(Auth) private auth: Auth, @Inject(Platform) private platform: Platform, @Inject(Db) private db: Db, @Inject(CONFIG) private config: Config) {}
+  constructor(@Inject(Auth) private auth: Auth, @Inject(Platform) private platform: Platform, @Inject(Db) private db: Db, @Inject(Webhooks) private webhooks: Webhooks) {}
 
   /** Every response about a connection says how fresh it is, so an app can tell synced from live. */
   private async withFreshness(res: Response, connectionId: string) {
@@ -192,13 +191,8 @@ export class PublicController {
   async createWebhook(@Req() req: Request, @Body() body: unknown) {
     const a = await this.auth.apiKey(req, "admin");
     const input = Webhook.parse(body);
-    const url = new URL(input.url);
-    if (url.protocol !== "https:" && !this.config.allowPrivateWebhooks) throw new ApiError(422, "webhook_must_be_https", "Webhook URLs must use HTTPS.");
-    const secret = randomToken("whsec_");
-    const row = await this.db.one(
-      "INSERT INTO webhook_endpoint (tenant_id, project_id, url, secret, events) VALUES ($1, $2, $3, $4, $5::webhook_event[]) RETURNING id",
-      [a.tenantId, a.projectId, input.url, seal(secret, this.config.secretsKey), input.events]);
-    return { id: row.id, url: input.url, events: input.events, secret };
+    const { id, url, events, secret } = await this.webhooks.createEndpoint(a.tenantId, a.projectId, input);
+    return { id, url, events, secret };
   }
 
   @Get("webhooks")

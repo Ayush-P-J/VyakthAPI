@@ -1,0 +1,29 @@
+---
+title: Introduction
+description: Read and write your customers' Tally data through a plain REST API.
+---
+
+Connect a customer's Tally once, then use their ledgers, vouchers and stock through REST and webhooks. You don't write XML or TDL, and you don't build a connector for each project.
+
+<Callout type="warn" title="Not yet proven on a real TallyPrime">
+  Everything so far has been tested against a simulated Tally. Don't post to a customer's live books until this notice is removed.
+</Callout>
+
+## How it fits together
+
+- **Connector.** A Windows program on your customer's PC. It talks to Tally there and keeps a secure channel open to us.
+- **Connect link.** You send this to your customer. They choose a company and decide what to share.
+- **Connection.** One Tally company your project can reach. Every data call names a connection.
+- **Synced and live reads.** Synced reads come from our copy and work when the customer's PC is off. Live reads ask Tally directly, so Tally must be open.
+- **Write jobs.** A write is queued and runs once on the connector. Your app hears the result from the job or a webhook.
+
+## Base address
+
+Calls go to `/v1` on your API address, with a key from the console:
+
+```sh
+curl https://api.example.com/v1/connections \
+  -H "authorization: Bearer $KEY"
+```
+
+Start with the [quickstart](/docs/quickstart).

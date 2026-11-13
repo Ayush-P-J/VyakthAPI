@@ -495,6 +495,321 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{id}/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    status?: string;
+                    connectionId?: string;
+                    cursor?: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Write jobs, newest first */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WriteJobList"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{id}/jobs/{jobId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    jobId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description One job, with what the app sent */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WriteJobDetail"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{id}/webhooks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Webhooks in this project */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WebhookList"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["NewWebhookRequest"];
+                };
+            };
+            responses: {
+                /** @description Created. The only response containing the secret */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CreatedWebhook"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{id}/webhooks/{webhookId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    webhookId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Done */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    webhookId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ChangeWebhookRequest"];
+                };
+            };
+            responses: {
+                /** @description Done */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/projects/{id}/webhooks/{webhookId}/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    webhookId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The latest 50 deliveries */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WebhookDeliveryList"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{id}/webhooks/{webhookId}/deliveries/{deliveryId}/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    webhookId: string;
+                    deliveryId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Done */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{id}/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    month?: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description One month of usage, in India time */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Usage"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -610,6 +925,115 @@ export interface components {
             id: string;
             url: string;
             expiresAt: string;
+        };
+        WriteJob: {
+            id: string;
+            connectionId: string;
+            dataset: string;
+            action: string;
+            idempotencyKey: string;
+            /** @enum {string} */
+            status: "queued" | "sent" | "completed" | "failed" | "rejected";
+            tallyId: string | null;
+            created: number | null;
+            altered: number | null;
+            deduplicated: boolean;
+            errors: ({
+                message: string;
+            } & {
+                [key: string]: unknown;
+            })[];
+            payloadHash: string;
+            createdAt: string;
+            completedAt: string | null;
+            company: string | null;
+        };
+        WriteJobList: {
+            data: components["schemas"]["WriteJob"][];
+            nextCursor: string | null;
+        };
+        WriteJobDetail: {
+            id: string;
+            connectionId: string;
+            dataset: string;
+            action: string;
+            idempotencyKey: string;
+            /** @enum {string} */
+            status: "queued" | "sent" | "completed" | "failed" | "rejected";
+            tallyId: string | null;
+            created: number | null;
+            altered: number | null;
+            deduplicated: boolean;
+            errors: ({
+                message: string;
+            } & {
+                [key: string]: unknown;
+            })[];
+            payloadHash: string;
+            createdAt: string;
+            completedAt: string | null;
+            company: string | null;
+            requestBody: unknown;
+        };
+        Webhook: {
+            id: string;
+            url: string;
+            events: string[];
+            isActive: boolean;
+            createdAt: string;
+            pending: number;
+            failed: number;
+        };
+        WebhookList: {
+            data: components["schemas"]["Webhook"][];
+        };
+        NewWebhookRequest: {
+            url: string;
+            events: ("record.created" | "record.updated" | "record.deleted" | "write_job.completed" | "write_job.failed" | "connection.status_changed" | "schema.published")[];
+        };
+        ChangeWebhookRequest: {
+            isActive: boolean;
+        };
+        CreatedWebhook: {
+            id: string;
+            url: string;
+            events: string[];
+            secret: string;
+            isActive: boolean;
+            createdAt: string;
+        };
+        WebhookDelivery: {
+            id: string;
+            event: string;
+            payload: unknown;
+            attempts: number;
+            createdAt: string;
+            deliveredAt: string | null;
+            nextRetryAt: string | null;
+            lastError: string | null;
+            /** @enum {string} */
+            status: "pending" | "retrying" | "delivered" | "failed";
+        };
+        WebhookDeliveryList: {
+            data: components["schemas"]["WebhookDelivery"][];
+        };
+        UsageCalls: {
+            synced_read: number;
+            live_read: number;
+            write: number;
+        };
+        Usage: {
+            month: string;
+            totals: {
+                calls: components["schemas"]["UsageCalls"];
+                units: number;
+            };
+            connections: {
+                connectionId: string | null;
+                company: string | null;
+                calls: components["schemas"]["UsageCalls"];
+                units: number;
+            }[];
         };
         ApiError: {
             error: {

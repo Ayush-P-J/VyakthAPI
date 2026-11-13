@@ -136,7 +136,7 @@ export class Platform {
       `INSERT INTO connect_link (tenant_id, project_id, token, label, requested_scopes, expires_at, redirect_url, requested_fields)
        VALUES ($1, $2, $3, $4, $5::api_scope[], now() + make_interval(hours => $6), $7, $8) RETURNING id, expires_at`,
       [tenantId, projectId, hashToken(token), input.label ?? null, input.requestedScopes, input.expiresInHours, input.redirectUrl ?? null, JSON.stringify(input.requestedFields ?? [])]);
-    return { id: row.id as string, url: `${this.config.publicUrl}/connect/${token}`, token, expiresAt: row.expires_at as Date };
+    return { id: row.id as string, url: `${this.config.consoleUrl}/connect/${token}`, token, expiresAt: row.expires_at as Date };
   }
 
   async revokeConnection(conn: any, by: "developer" | "customer"): Promise<void> {
@@ -417,7 +417,7 @@ export class Platform {
 
 export const isUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 
-function jobView(j: any) {
+export function jobView(j: any) {
   const r = j.result ?? {};
   return {
     id: j.id, connectionId: j.connection_id, dataset: j.dataset_name, action: j.action, idempotencyKey: j.idempotency_key,

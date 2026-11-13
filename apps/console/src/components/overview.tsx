@@ -2,42 +2,47 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { EmptyState, LoadError, PageHeader } from "@/components/page-parts";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { api, type ProjectOverview } from "@/lib/api";
 
-function Row({ label, value, note }: { label: string; value: number | undefined; note?: string }) {
+function Stat({ label, value, note }: { label: string; value: number | undefined; note?: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-6 border-b border-rule py-3">
-      <dt>
-        {label}
-        {note ? <span className="block text-[0.8125rem] text-quiet">{note}</span> : null}
-      </dt>
-      <dd className="font-serif text-2xl font-semibold text-bank tabular-nums">{value ?? "–"}</dd>
+    <div className="rounded-xl bg-card px-4 py-3 shadow-xs ring-1 ring-foreground/10">
+      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dd className="mt-1 text-2xl font-semibold tabular-nums">{value ?? <Skeleton className="h-8 w-10" />}</dd>
+      {note ? <dd className="mt-0.5 text-xs text-muted-foreground">{note}</dd> : null}
     </div>
   );
 }
 
-export function Overview({ projectId }: { projectId: string }) {
+export function Overview({ projectId, name }: { projectId: string; name: string }) {
   const { data, error, isPending } = useQuery({
     queryKey: ["project", projectId, "overview"],
     queryFn: () => api<ProjectOverview>(`/projects/${projectId}/overview`),
     refetchInterval: 15_000,
   });
-  if (error && !data) return <p role="alert" className="mt-8 font-medium text-margin">{error.message}</p>;
   const c = data?.connections;
   return (
     <>
-      <dl className="mt-8 max-w-xl border-t-2 border-bank" aria-busy={isPending}>
-        <Row label="Connected companies" value={c?.active} />
-        <Row label="Connector running" value={c?.online} note="The customer's PC is on and connected" />
-        <Row label="Tally open" value={c?.tallyOpen} note="Live reads and writes can run now" />
-        <Row label="API keys" value={data?.apiKeys} />
-      </dl>
+      <PageHeader title={name} description="Your customers' Tally connections right now." />
+      {error && !data ? <LoadError message={error.message} /> : (
+        <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-busy={isPending}>
+          <Stat label="Connected companies" value={c?.active} />
+          <Stat label="Connector running" value={c?.online} note="The customer's PC is on and connected" />
+          <Stat label="Tally open" value={c?.tallyOpen} note="Live reads and writes can run now" />
+          <Stat label="API keys" value={data?.apiKeys} />
+        </dl>
+      )}
       {c?.total === 0 ? (
-        <section className="mt-10 max-w-xl">
-          <h2 className="text-xl font-semibold">No customers connected yet</h2>
-          <p className="mt-2 text-quiet">Create a connect link and send it to your customer. Each company they connect will be counted here.</p>
-          <p className="mt-3"><Link href={`/projects/${projectId}/connections`} className="font-medium text-bank underline underline-offset-3">Connect a customer</Link></p>
-        </section>
+        <div className="mt-8">
+          <EmptyState
+            title="No customers connected yet"
+            description="Create a connect link and send it to your customer. Each company they connect will be counted here."
+            action={<Button asChild><Link href={`/projects/${projectId}/connections`}>Connect a customer</Link></Button>}
+          />
+        </div>
       ) : null}
     </>
   );

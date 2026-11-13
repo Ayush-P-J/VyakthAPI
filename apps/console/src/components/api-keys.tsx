@@ -3,12 +3,17 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
+import { Plus } from "lucide-react";
+import { EmptyState, ListSkeleton, LoadError, PageHeader, SectionHeading, StatusBadge } from "@/components/page-parts";
 import { Button } from "@/components/ui/button";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Field } from "@/components/ui/field";
+import { FormCard } from "@/components/ui/form-card";
 import { FormError, applyServerError } from "@/components/ui/form-error";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Row, Rows } from "@/components/ui/row";
 import { SecretOnce } from "@/components/ui/secret-once";
 import { api, type ApiKey, type ApiKeyList, type CreatedApiKey, type NewApiKeyRequest } from "@/lib/api";
@@ -34,9 +39,9 @@ function accessLabel(scopes: string[]) {
   return `Scopes: ${scopes.join(", ")}`;
 }
 
-function NewKeyForm({ projectId, onCreated }: { projectId: string; onCreated: (key: CreatedApiKey) => void }) {
+function NewKeyForm({ projectId, onCreated, onCancel }: { projectId: string; onCreated: (key: CreatedApiKey) => void; onCancel: () => void }) {
   const [formError, setFormError] = useState("");
-  const { register, handleSubmit, setError, reset, formState: { errors, isSubmitting } } = useForm<Values>({ resolver: zodResolver(Schema), defaultValues: { access: "read" } });
+  const { register, control, handleSubmit, setError, reset, formState: { errors, isSubmitting } } = useForm<Values>({ resolver: zodResolver(Schema), defaultValues: { access: "read" } });
   const submit = handleSubmit(async ({ name, access }) => {
     setFormError("");
     try {
@@ -48,19 +53,26 @@ function NewKeyForm({ projectId, onCreated }: { projectId: string; onCreated: (k
     }
   });
   return (
-    <form onSubmit={submit} noValidate className="mt-4 max-w-xl border-t border-rule" aria-label="Create an API key">
+    <form onSubmit={submit} noValidate className="grid gap-4" aria-label="Create an API key">
       <Field label="Key name" hint="Something you'll recognise later, like the app or server that uses it." error={errors.name?.message} {...register("name")} />
-      <fieldset className="border-b border-rule py-3">
-        <legend className="text-sm font-medium">What this key can do</legend>
-        {(Object.keys(ACCESS) as Access[]).map((a) => (
-          <label key={a} className="mt-2 flex cursor-pointer items-start gap-2">
-            <input type="radio" value={a} className="mt-1 accent-bank" {...register("access")} />
-            <span>{ACCESS[a].label}<span className="block text-[0.8125rem] text-quiet">{ACCESS[a].detail}</span></span>
-          </label>
-        ))}
+      <fieldset className="grid gap-2">
+        <legend className="mb-2 text-sm font-medium">What this key can do</legend>
+        <Controller control={control} name="access" render={({ field }) => (
+          <RadioGroup value={field.value} onValueChange={field.onChange} className="gap-2">
+            {(Object.keys(ACCESS) as Access[]).map((a) => (
+              <div key={a} className="flex items-start gap-2">
+                <RadioGroupItem id={`access-${a}`} value={a} className="mt-0.5" />
+                <Label htmlFor={`access-${a}`} className="block cursor-pointer font-normal leading-snug">{ACCESS[a].label}<span className="block text-[0.8125rem] text-muted-foreground">{ACCESS[a].detail}</span></Label>
+              </div>
+            ))}
+          </RadioGroup>
+        )} />
       </fieldset>
       <FormError message={formError} />
-      <Button type="submit" disabled={isSubmitting} className="mt-6">{isSubmitting ? "Creating key" : "Create key"}</Button>
+      <div className="flex gap-2">
+        <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Creating key" : "Create key"}</Button>
+        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+      </div>
     </form>
   );
 }
@@ -76,11 +88,12 @@ function KeyRow({ apiKey, projectId }: { apiKey: ApiKey; projectId: string }) {
     <Row
       muted={revoked}
       title={apiKey.name}
+      status={revoked ? <StatusBadge tone="neutral">Revoked</StatusBadge> : null}
       detail={
         <>
           <p><code className="font-mono">{apiKey.keyPrefix}…</code> · {accessLabel(apiKey.scopes)}</p>
-          <p>{revoked ? `Revoked ${formatDate(apiKey.revokedAt)}` : `Created ${formatDate(apiKey.createdAt)} · Last used: ${formatDate(apiKey.lastUsedAt)}`}</p>
-          {revoke.error ? <p role="alert" className="font-medium text-margin">{revoke.error.message}</p> : null}
+          <p>{revoked ? `On ${formatDate(apiKey.revokedAt)}` : `Created ${formatDate(apiKey.createdAt)} · Last used: ${formatDate(apiKey.lastUsedAt)}`}</p>
+          {revoke.error ? <p role="alert" className="font-medium text-destructive">{revoke.error.message}</p> : null}
         </>
       }
       action={revoked ? undefined : (
@@ -97,31 +110,32 @@ export function ApiKeys({ projectId }: { projectId: string }) {
   const { data, error } = useQuery({ queryKey: ["project", projectId, "keys"], queryFn: () => api<ApiKeyList>(`/projects/${projectId}/api-keys`) });
   return (
     <>
+      <PageHeader
+        title="API keys"
+        description="Your app uses a key to call the API."
+        actions={adding ? null : <Button type="button" onClick={() => setAdding(true)}><Plus aria-hidden /> Create API key</Button>}
+      />
       {created ? (
         <SecretOnce title={`Your new key: ${created.name}`} note="Copy it now and keep it somewhere safe. We only store a scrambled copy, so we can't show it again." value={created.key} onDone={() => setCreated(null)} />
       ) : null}
-      <section className="mt-8">
-        {adding ? (
-          <>
-            <h2 className="text-xl font-semibold">Create an API key</h2>
-            <NewKeyForm
-              projectId={projectId}
-              onCreated={(key) => {
-                setCreated(key);
-                setAdding(false);
-                void client.invalidateQueries({ queryKey: ["project", projectId] });
-              }}
-            />
-            <Button type="button" variant="secondary" onClick={() => setAdding(false)} className="mt-3">Cancel</Button>
-          </>
-        ) : (
-          <Button type="button" onClick={() => setAdding(true)}>Create API key</Button>
-        )}
-      </section>
-      <section className="mt-10">
-        <h2 className="text-xl font-semibold">Keys in this project</h2>
-        {error && !data ? <p role="alert" className="mt-4 font-medium text-margin">{error.message}</p> : null}
-        {data?.data.length === 0 ? <p className="mt-2 text-quiet">No keys yet. Your app needs one to call the API.</p> : null}
+      {adding ? (
+        <FormCard title="Create an API key">
+          <NewKeyForm
+            projectId={projectId}
+            onCancel={() => setAdding(false)}
+            onCreated={(key) => {
+              setCreated(key);
+              setAdding(false);
+              void client.invalidateQueries({ queryKey: ["project", projectId] });
+            }}
+          />
+        </FormCard>
+      ) : null}
+      <section>
+        <SectionHeading>Keys in this project</SectionHeading>
+        {error && !data ? <LoadError message={error.message} /> : null}
+        {!data && !error ? <ListSkeleton /> : null}
+        {data?.data.length === 0 ? <EmptyState title="No keys yet" description="Your app needs one to call the API." /> : null}
         {data?.data.length ? <Rows label="API keys">{data.data.map((k) => <KeyRow key={k.id} apiKey={k} projectId={projectId} />)}</Rows> : null}
       </section>
     </>

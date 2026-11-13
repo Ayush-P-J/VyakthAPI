@@ -6,8 +6,8 @@ export const metadata: Metadata = { title: "Sign in" };
 export default function LoginPage() {
   return (
     <>
-      <h1 className="text-4xl leading-tight font-bold">Sign in</h1>
-      <p className="mt-3 text-quiet">Manage your customers' Tally connections and API keys.</p>
+      <h1 className="mb-1 text-xl font-semibold">Sign in</h1>
+      <p className="mb-6 text-sm text-muted-foreground">Manage your customers' Tally connections and API keys.</p>
       <LoginForm />
     </>
   );

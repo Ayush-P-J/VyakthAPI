@@ -1,5 +1,5 @@
 /** The API behind the developer console. Signed in with a session cookie, never an API key. */
-import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Req, Res } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Query, Req, Res } from "@nestjs/common";
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { CONFIG, type Config } from "./config.ts";
@@ -7,9 +7,10 @@ import { ConsoleAuth, SESSION_COOKIE, SESSION_DAYS, Throttle, burnPasswordCheck,
 import { Db } from "./db.ts";
 import { ApiError, notFound } from "./errors.ts";
 import { parseArray } from "./auth.ts";
-import { Platform, isUuid } from "./platform.ts";
-import { ConnectLink } from "./public.controller.ts";
+import { Platform, isUuid, jobView } from "./platform.ts";
+import { ConnectLink, Webhook } from "./public.controller.ts";
 import { hashToken, randomToken } from "./secrets.ts";
+import { Webhooks } from "./webhooks.ts";
 
 const email = z.string().trim().toLowerCase().email().max(254);
 const Signup = z.object({
@@ -24,6 +25,14 @@ const NewProject = z.object({ name: z.string().trim().min(1, "Enter a project na
 // Limiting a key to one connection stays out until every project-wide route honours that limit.
 const NewApiKey = z.object({ name: z.string().trim().min(1, "Enter a name for this key.").max(120), scopes: z.array(z.enum(["read", "write", "admin"])).min(1) }).strict();
 const NewConnectLink = ConnectLink.omit({ requestedFields: true });
+const JobsQuery = z.object({
+  status: z.enum(["queued", "sent", "completed", "failed", "rejected"]).optional(),
+  connectionId: z.string().uuid().optional(),
+  cursor: z.string().regex(/^\d{1,18}$/).optional(),
+}).strict();
+const UsageQuery = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional() }).strict();
+const WebhookChange = z.object({ isActive: z.boolean() }).strict();
+const JOBS_PAGE = 50;
 
 const FIFTEEN_MINUTES = 15 * 60_000;
 const HOUR = 60 * 60_000;
@@ -36,7 +45,7 @@ export class ConsoleController {
   private accountFailures = new Throttle(20, FIFTEEN_MINUTES);
   private signups = new Throttle(20, HOUR);
 
-  constructor(@Inject(ConsoleAuth) private auth: ConsoleAuth, @Inject(Db) private db: Db, @Inject(CONFIG) private config: Config, @Inject(Platform) private platform: Platform) {}
+  constructor(@Inject(ConsoleAuth) private auth: ConsoleAuth, @Inject(Db) private db: Db, @Inject(CONFIG) private config: Config, @Inject(Platform) private platform: Platform, @Inject(Webhooks) private webhooks: Webhooks) {}
 
   /** Another account's project looks exactly like one that does not exist. */
   private async project(req: Request, id: string): Promise<{ id: string; name: string; tenantId: string }> {
@@ -244,6 +253,133 @@ export class ConsoleController {
     if (!isUuid(linkId) || !(await this.db.one("SELECT 1 FROM connect_link WHERE id = $1 AND project_id = $2", [linkId, project.id]))) throw notFound("No such connect link.");
     const cancelled = await this.db.one("UPDATE connect_link SET expires_at = least(expires_at, now()) WHERE id = $1 AND consumed_at IS NULL RETURNING id", [linkId]);
     if (!cancelled) throw new ApiError(409, "link_used", "This link has already been used. Revoke the connection instead.");
+  }
+
+  // -- Write jobs ----------------------------------------------------------------------------
+  @Get("projects/:id/jobs")
+  async listJobs(@Req() req: Request, @Param("id") id: string, @Query() rawQuery: unknown) {
+    const project = await this.project(req, id);
+    const q = JobsQuery.parse(rawQuery);
+    const rows = (await this.db.query(
+      `SELECT j.*, c.company_name FROM write_job j JOIN connection c ON c.id = j.connection_id
+       WHERE j.project_id = $1 AND ($2::write_status IS NULL OR j.status = $2) AND ($3::uuid IS NULL OR j.connection_id = $3) AND ($4::bigint IS NULL OR j.seq < $4)
+       ORDER BY j.seq DESC LIMIT $5`, [project.id, q.status ?? null, q.connectionId ?? null, q.cursor ?? null, JOBS_PAGE + 1])).rows;
+    const page = rows.slice(0, JOBS_PAGE);
+    return { data: page.map((j) => ({ ...jobView(j), company: j.company_name as string | null })), nextCursor: rows.length > JOBS_PAGE ? String(page.at(-1)!.seq) : null };
+  }
+
+  /** What the app sent is only returned here, one job at a time. */
+  @Get("projects/:id/jobs/:jobId")
+  async getJob(@Req() req: Request, @Param("id") id: string, @Param("jobId") jobId: string) {
+    const project = await this.project(req, id);
+    const j = isUuid(jobId) ? await this.db.one("SELECT j.*, c.company_name FROM write_job j JOIN connection c ON c.id = j.connection_id WHERE j.id = $1 AND j.project_id = $2", [jobId, project.id]) : null;
+    if (!j) throw notFound("No such write job.");
+    return { ...jobView(j), company: j.company_name as string | null, requestBody: j.request_body as unknown };
+  }
+
+  // -- Webhooks ------------------------------------------------------------------------------
+  private async endpoint(projectId: string, id: string): Promise<{ id: string; is_active: boolean }> {
+    const row = isUuid(id) ? await this.db.one("SELECT id, is_active FROM webhook_endpoint WHERE id = $1 AND project_id = $2", [id, projectId]) : null;
+    if (!row) throw notFound("No such webhook.");
+    return row;
+  }
+
+  @Get("projects/:id/webhooks")
+  async listWebhooks(@Req() req: Request, @Param("id") id: string) {
+    const project = await this.project(req, id);
+    const rows = (await this.db.query(
+      `SELECT e.id, e.url, e.events, e.is_active, e.created_at,
+              count(d.id) FILTER (WHERE d.delivered_at IS NULL AND d.next_retry_at IS NOT NULL)::int AS pending,
+              count(d.id) FILTER (WHERE d.delivered_at IS NULL AND d.next_retry_at IS NULL)::int AS failed
+       FROM webhook_endpoint e LEFT JOIN webhook_delivery d ON d.endpoint_id = e.id
+       WHERE e.project_id = $1 GROUP BY e.id ORDER BY e.created_at DESC`, [project.id])).rows;
+    return { data: rows.map((r) => ({ id: r.id as string, url: r.url as string, events: parseArray(r.events), isActive: r.is_active as boolean, createdAt: r.created_at as Date, pending: r.pending as number, failed: r.failed as number })) };
+  }
+
+  /** The only response that ever contains the signing secret. */
+  @Post("projects/:id/webhooks")
+  async createWebhook(@Req() req: Request, @Param("id") id: string, @Body() body: unknown) {
+    this.checkOrigin(req);
+    const project = await this.project(req, id);
+    const input = Webhook.parse(body);
+    return this.webhooks.createEndpoint(project.tenantId, project.id, { url: input.url, events: [...new Set(input.events)] });
+  }
+
+  /** Pausing stops new events being recorded. Deliveries already waiting go out on resume. */
+  @Patch("projects/:id/webhooks/:webhookId")
+  @HttpCode(204)
+  async changeWebhook(@Req() req: Request, @Param("id") id: string, @Param("webhookId") webhookId: string, @Body() body: unknown) {
+    this.checkOrigin(req);
+    const project = await this.project(req, id);
+    const endpoint = await this.endpoint(project.id, webhookId);
+    await this.db.query("UPDATE webhook_endpoint SET is_active = $2 WHERE id = $1", [endpoint.id, WebhookChange.parse(body).isActive]);
+  }
+
+  @Delete("projects/:id/webhooks/:webhookId")
+  @HttpCode(204)
+  async deleteWebhook(@Req() req: Request, @Param("id") id: string, @Param("webhookId") webhookId: string) {
+    this.checkOrigin(req);
+    const project = await this.project(req, id);
+    const endpoint = await this.endpoint(project.id, webhookId);
+    await this.db.query("DELETE FROM webhook_endpoint WHERE id = $1", [endpoint.id]);
+  }
+
+  @Get("projects/:id/webhooks/:webhookId/deliveries")
+  async listDeliveries(@Req() req: Request, @Param("id") id: string, @Param("webhookId") webhookId: string) {
+    const project = await this.project(req, id);
+    const endpoint = await this.endpoint(project.id, webhookId);
+    const rows = (await this.db.query(
+      "SELECT id, event, payload, attempts, delivered_at, next_retry_at, last_error, created_at FROM webhook_delivery WHERE endpoint_id = $1 ORDER BY created_at DESC, id DESC LIMIT 50", [endpoint.id])).rows;
+    return {
+      data: rows.map((r) => ({
+        id: r.id as string, event: r.event as string, payload: r.payload as unknown, attempts: r.attempts as number, createdAt: r.created_at as Date,
+        deliveredAt: r.delivered_at as Date | null, nextRetryAt: r.next_retry_at as Date | null, lastError: r.last_error as string | null,
+        status: r.delivered_at ? "delivered" : !r.next_retry_at ? "failed" : r.attempts > 0 ? "retrying" : "pending",
+      })),
+    };
+  }
+
+  /** Resends with the same event id, so a receiver that keeps track of ids can ignore a repeat. */
+  @Post("projects/:id/webhooks/:webhookId/deliveries/:deliveryId/resend")
+  @HttpCode(204)
+  async resend(@Req() req: Request, @Param("id") id: string, @Param("webhookId") webhookId: string, @Param("deliveryId") deliveryId: string) {
+    this.checkOrigin(req);
+    const project = await this.project(req, id);
+    const endpoint = await this.endpoint(project.id, webhookId);
+    if (!endpoint.is_active) throw new ApiError(409, "webhook_paused", "Resume this webhook before resending.");
+    const row = isUuid(deliveryId) ? await this.db.one(
+      "UPDATE webhook_delivery SET delivered_at = NULL, attempts = 0, next_retry_at = now(), last_error = NULL WHERE id = $1 AND endpoint_id = $2 RETURNING id", [deliveryId, endpoint.id]) : null;
+    if (!row) throw notFound("No such delivery.");
+  }
+
+  // -- Usage ---------------------------------------------------------------------------------
+  /** Months follow India time, so a late-night call on the 31st counts in the month it was made. */
+  @Get("projects/:id/usage")
+  async usage(@Req() req: Request, @Param("id") id: string, @Query() rawQuery: unknown) {
+    const project = await this.project(req, id);
+    const { month } = UsageQuery.parse(rawQuery);
+    const start = month ? `${month}-01` : null;
+    const rows = (await this.db.query(
+      `WITH m AS (SELECT coalesce($2::date, date_trunc('month', now() AT TIME ZONE 'Asia/Kolkata')::date) AS first)
+       SELECT to_char(m.first, 'YYYY-MM') AS month, u.connection_id, c.company_name, u.kind, count(*)::int AS calls, sum(u.weight)::int AS units
+       FROM m LEFT JOIN usage_event u ON u.project_id = $1
+         AND u.occurred_at >= (m.first::timestamp AT TIME ZONE 'Asia/Kolkata')
+         AND u.occurred_at < ((m.first + interval '1 month')::timestamp AT TIME ZONE 'Asia/Kolkata')
+       LEFT JOIN connection c ON c.id = u.connection_id
+       GROUP BY m.first, u.connection_id, c.company_name, u.kind ORDER BY c.company_name NULLS LAST, u.connection_id`, [project.id, start])).rows;
+    const empty = () => ({ synced_read: 0, live_read: 0, write: 0 });
+    const totals = { calls: empty(), units: 0 };
+    const companies = new Map<string, { connectionId: string | null; company: string | null; calls: ReturnType<typeof empty>; units: number }>();
+    for (const r of rows.filter((x) => x.kind)) {
+      const key = r.connection_id ?? "none";
+      const line = companies.get(key) ?? { connectionId: r.connection_id, company: r.company_name, calls: empty(), units: 0 };
+      line.calls[r.kind as keyof ReturnType<typeof empty>] = r.calls;
+      line.units += r.units;
+      companies.set(key, line);
+      totals.calls[r.kind as keyof ReturnType<typeof empty>] += r.calls;
+      totals.units += r.units;
+    }
+    return { month: rows[0]!.month as string, totals, connections: [...companies.values()] };
   }
 }
 

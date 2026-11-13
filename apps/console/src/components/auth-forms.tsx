@@ -38,12 +38,12 @@ export function LoginForm() {
     }
   });
   return (
-    <form onSubmit={submit} noValidate className="mt-6 border-t border-rule">
+    <form onSubmit={submit} noValidate className="grid gap-4">
       <Field label="Email" type="email" autoComplete="email" error={errors.email?.message} {...register("email")} />
       <Field label="Password" type="password" autoComplete="current-password" error={errors.password?.message} {...register("password")} />
       <FormError message={formError} />
-      <Button type="submit" disabled={isSubmitting} className="mt-6">{isSubmitting ? "Signing in" : "Sign in"}</Button>
-      <p className="mt-5 text-sm text-quiet">New here? <Link href="/signup" className="font-medium text-bank underline underline-offset-3">Create an account</Link></p>
+      <Button type="submit" disabled={isSubmitting} className="w-full">{isSubmitting ? "Signing in" : "Sign in"}</Button>
+      <p className="text-center text-sm text-muted-foreground">New here? <Link href="/signup" className="font-medium text-primary underline-offset-4 hover:underline">Create an account</Link></p>
     </form>
   );
 }
@@ -63,14 +63,14 @@ export function SignupForm() {
     }
   });
   return (
-    <form onSubmit={submit} noValidate className="mt-6 border-t border-rule">
+    <form onSubmit={submit} noValidate className="grid gap-4">
       <Field label="Your name" autoComplete="name" error={errors.name?.message} {...register("name")} />
       <Field label="Company" autoComplete="organization" hint="Your first project takes this name." error={errors.company?.message} {...register("company")} />
       <Field label="Work email" type="email" autoComplete="email" error={errors.email?.message} {...register("email")} />
       <Field label="Password" type="password" autoComplete="new-password" hint="At least 10 characters." error={errors.password?.message} {...register("password")} />
       <FormError message={formError} />
-      <Button type="submit" disabled={isSubmitting} className="mt-6">{isSubmitting ? "Creating your account" : "Create account"}</Button>
-      <p className="mt-5 text-sm text-quiet">Already have an account? <Link href="/login" className="font-medium text-bank underline underline-offset-3">Sign in</Link></p>
+      <Button type="submit" disabled={isSubmitting} className="w-full">{isSubmitting ? "Creating your account" : "Create account"}</Button>
+      <p className="text-center text-sm text-muted-foreground">Already have an account? <Link href="/login" className="font-medium text-primary underline-offset-4 hover:underline">Sign in</Link></p>
     </form>
   );
 }

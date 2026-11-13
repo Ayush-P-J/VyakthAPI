@@ -13,5 +13,5 @@ export function applyServerError<T extends FieldValues>(e: unknown, setError: Us
 }
 
 export function FormError({ message }: { message: string }) {
-  return message ? <p role="alert" className="mt-4 font-medium text-margin">{message}</p> : null;
+  return message ? <p role="alert" className="rounded-lg bg-danger-soft px-3 py-2 text-sm font-medium text-destructive">{message}</p> : null;
 }

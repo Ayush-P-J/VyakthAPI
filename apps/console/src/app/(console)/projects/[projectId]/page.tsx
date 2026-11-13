@@ -10,10 +10,5 @@ export default async function OverviewPage({ params }: { params: Promise<{ proje
   const profile = await getProfile();
   if (!profile) redirect("/login");
   const project = profile.projects.find((p) => p.id === projectId);
-  return (
-    <>
-      <h1 className="text-4xl leading-tight font-bold break-words">{project?.name}</h1>
-      <Overview projectId={projectId} />
-    </>
-  );
+  return <Overview key={projectId} projectId={projectId} name={project?.name ?? ""} />;
 }

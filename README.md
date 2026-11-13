@@ -26,7 +26,15 @@ Every connector must trust your signing public key: give it `SIGNING_KID` and `S
 
 ## Developer console
 
-Open http://localhost:3001 locally, or your console domain, and create an account. Today it covers signup, sign-in and a project overview; API keys and connect links still use the API.
+Open http://localhost:3001 locally, or your console domain, and create an account. It covers projects, API keys, connections and connect links, write jobs, webhooks and usage. Custom-field mapping isn't in it yet, so that still uses the API.
+
+The same address also serves, without signing in:
+
+- `/docs`: developer docs. The pages are in `apps/console/content/docs`.
+- `/pricing`: how pricing works. Rupee amounts aren't set yet, and nothing is billed.
+- `/connect/<token>`: the page your customer uses to connect. Connect links now point at `CONSOLE_URL`, so it must be the address customers can reach. Links on the API's address forward here.
+
+The console uses shadcn/ui with the same theme as our other apps, in `apps/console/src/app/globals.css`.
 
 New accounts are open by default. **Set `ALLOW_SIGNUP=false` in `.env` before exposing a server publicly**, because there is no email verification or password reset yet. `CONSOLE_URL` must exactly match the address in the browser, or sign-in is refused as coming from another site.
 

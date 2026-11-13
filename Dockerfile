@@ -35,11 +35,10 @@ CMD ["node", "apps/console/server.js"]
 
 # The API and the webhook worker. No package manager, no source and no node_modules.
 FROM node:24-alpine AS cloud
-ENV NODE_ENV=production MIGRATIONS_DIR=/app/db/migrations PUBLIC_DIR=/app/public PORT=3000
+ENV NODE_ENV=production MIGRATIONS_DIR=/app/db/migrations PORT=3000
 WORKDIR /app
 COPY --from=build /src/dist/cloud.mjs ./cloud.mjs
 COPY db/migrations db/migrations
-COPY apps/cloud/public public
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \

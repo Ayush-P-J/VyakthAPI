@@ -27,10 +27,10 @@ export function NewProjectForm() {
     }
   });
   return (
-    <form onSubmit={submit} noValidate className="mt-6 max-w-xl border-t border-rule">
-      <Field label="Project name" hint="Usually the name of the app that will use Tally data. Each project has its own keys and connections." error={errors.name?.message} {...register("name")} />
+    <form onSubmit={submit} noValidate className="grid max-w-md gap-4">
+      <Field label="Project name" error={errors.name?.message} {...register("name")} />
       <FormError message={formError} />
-      <Button type="submit" disabled={isSubmitting} className="mt-6">{isSubmitting ? "Creating project" : "Create project"}</Button>
+      <Button type="submit" disabled={isSubmitting} className="w-fit">{isSubmitting ? "Creating project" : "Create project"}</Button>
     </form>
   );
 }

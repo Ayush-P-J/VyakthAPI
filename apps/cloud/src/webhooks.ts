@@ -10,7 +10,8 @@ import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { CONFIG, type Config } from "./config.ts";
 import { Db, type Tx } from "./db.ts";
-import { unseal } from "./secrets.ts";
+import { ApiError } from "./errors.ts";
+import { randomToken, seal, unseal } from "./secrets.ts";
 
 export type WebhookEvent = "record.created" | "record.updated" | "record.deleted" | "write_job.completed" | "write_job.failed" | "connection.status_changed" | "schema.published";
 
@@ -37,6 +38,21 @@ export class Webhooks {
     await this.emitMany(c, tenantId, projectId, [{ event, data }]);
   }
 
+  /** The secret goes back to the caller once; it is stored sealed, because signing needs the original. */
+  async createEndpoint(tenantId: string, projectId: string, input: { url: string; events: string[] }) {
+    const url = new URL(input.url);
+    const host = url.hostname.replace(/[[\]]/g, "");
+    if (!this.config.allowPrivateWebhooks) {
+      if (url.protocol !== "https:") throw new ApiError(422, "webhook_must_be_https", "Webhook URLs must use HTTPS.");
+      if (isIP(host) && isPrivateAddress(host)) throw new ApiError(422, "webhook_private_address", "Webhook URLs can't point at a private network address.");
+    }
+    const secret = randomToken("whsec_");
+    const row = await this.db.one(
+      "INSERT INTO webhook_endpoint (tenant_id, project_id, url, secret, events) VALUES ($1, $2, $3, $4, $5::webhook_event[]) RETURNING id, is_active, created_at",
+      [tenantId, projectId, input.url, seal(secret, this.config.secretsKey), input.events]);
+    return { id: row.id as string, url: input.url, events: input.events, secret, isActive: row.is_active as boolean, createdAt: row.created_at as Date };
+  }
+
   /** Fans out to matching endpoints. A record batch can be large, so this is one statement. */
   async emitMany(c: Tx, tenantId: string, projectId: string, items: { event: WebhookEvent; data: unknown }[]): Promise<void> {
     if (items.length === 0) return;
@@ -50,30 +66,32 @@ export class Webhooks {
     );
   }
 
-  /** Delivers due webhooks. Returns how many it attempted. Several workers can run at once. */
+  /** Delivers due webhooks. Returns how many it attempted. Several workers can run at once. A paused endpoint's deliveries wait until it resumes. */
   async deliverDue(limit = 50): Promise<number> {
     const due = await this.db.tx(async (c) => (await c.query(
       `UPDATE webhook_delivery d SET attempts = attempts + 1, next_retry_at = now() + make_interval(secs => 30 * power(2, attempts))
        FROM webhook_endpoint e
        WHERE d.endpoint_id = e.id AND d.id IN (
-         SELECT id FROM webhook_delivery WHERE delivered_at IS NULL AND next_retry_at <= now() ORDER BY next_retry_at LIMIT $1 FOR UPDATE SKIP LOCKED)
+         SELECT w.id FROM webhook_delivery w JOIN webhook_endpoint a ON a.id = w.endpoint_id
+         WHERE w.delivered_at IS NULL AND w.next_retry_at <= now() AND a.is_active ORDER BY w.next_retry_at LIMIT $1 FOR UPDATE OF w SKIP LOCKED)
        RETURNING d.id, d.payload, d.attempts, e.url, e.secret`, [limit])).rows);
     await Promise.all(due.map(async (d) => {
       const body = JSON.stringify(d.payload);
-      let ok = false;
+      let failure: string | null;
       try {
-        ok = await this.post(d.url, body, unseal(d.secret, this.config.secretsKey), d.payload.id);
+        failure = await this.post(d.url, body, unseal(d.secret, this.config.secretsKey), d.payload.id);
       } catch (e) {
+        failure = describeFailure(e);
         console.warn(`[webhooks] delivery ${d.id} failed: ${(e as Error).message}`);
       }
-      if (ok) await this.db.query("UPDATE webhook_delivery SET delivered_at = now(), next_retry_at = NULL WHERE id = $1", [d.id]);
-      else if (d.attempts >= MAX_ATTEMPTS) await this.db.query("UPDATE webhook_delivery SET next_retry_at = NULL WHERE id = $1", [d.id]);
+      if (failure === null) await this.db.query("UPDATE webhook_delivery SET delivered_at = now(), next_retry_at = NULL, last_error = NULL WHERE id = $1", [d.id]);
+      else await this.db.query("UPDATE webhook_delivery SET last_error = $2, next_retry_at = CASE WHEN $3 THEN NULL ELSE next_retry_at END WHERE id = $1", [d.id, failure, d.attempts >= MAX_ATTEMPTS]);
     }));
     return due.length;
   }
 
-  /** Resolving inside the socket's own lookup closes the gap where DNS changes after a check. */
-  private post(url: string, body: string, secret: string, eventId: string): Promise<boolean> {
+  /** Answers null when delivered, or why not. Resolving inside the socket's own lookup closes the gap where DNS changes after a check. */
+  private post(url: string, body: string, secret: string, eventId: string): Promise<string | null> {
     const u = new URL(url);
     const allowPrivate = this.config.allowPrivateWebhooks;
     const guardedLookup: any = (host: string, opts: any, cb: any) => {
@@ -93,11 +111,19 @@ export class Webhooks {
       }, (res) => {
         res.resume();
         // Redirects are not followed: a redirect could point anywhere, including inside our network.
-        resolve((res.statusCode ?? 500) >= 200 && (res.statusCode ?? 500) < 300);
+        const status = res.statusCode ?? 500;
+        resolve(status >= 200 && status < 300 ? null : `Your server answered HTTP ${status}.`);
       });
       req.on("timeout", () => req.destroy(new Error("Webhook timed out")));
       req.on("error", reject);
       req.end(body);
     });
   }
+}
+
+/** Says what went wrong without passing on low-level network detail. */
+function describeFailure(e: unknown): string {
+  const { message, code } = e as { message?: string; code?: string };
+  if (message?.startsWith("Webhook")) return `${message}.`;
+  return `Couldn't connect to your server (${code ?? "network error"}).`;
 }

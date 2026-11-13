@@ -17,6 +17,16 @@ export type ConnectLink = components["schemas"]["ConnectLink"];
 export type ConnectLinkList = components["schemas"]["ConnectLinkList"];
 export type CreatedConnectLink = components["schemas"]["CreatedConnectLink"];
 export type NewConnectLinkRequest = components["schemas"]["NewConnectLinkRequest"];
+export type WriteJob = components["schemas"]["WriteJob"];
+export type WriteJobList = components["schemas"]["WriteJobList"];
+export type WriteJobDetail = components["schemas"]["WriteJobDetail"];
+export type Webhook = components["schemas"]["Webhook"];
+export type WebhookList = components["schemas"]["WebhookList"];
+export type NewWebhookRequest = components["schemas"]["NewWebhookRequest"];
+export type CreatedWebhook = components["schemas"]["CreatedWebhook"];
+export type WebhookDelivery = components["schemas"]["WebhookDelivery"];
+export type WebhookDeliveryList = components["schemas"]["WebhookDeliveryList"];
+export type Usage = components["schemas"]["Usage"];
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public details?: unknown) {
